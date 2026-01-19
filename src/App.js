@@ -164,8 +164,9 @@ function App() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe, asset1, asset2]);
-
+  
   const asset1Info = getAssetInfo(asset1);
   const asset2Info = getAssetInfo(asset2);
 
