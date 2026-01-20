@@ -60,18 +60,15 @@ function App() {
     }
   };
 
-  // Advanced Pattern Recognition
   const detectPatterns = (chartData) => {
     if (chartData.length < 10) return [];
     
     const patterns = [];
     const diffs = chartData.map(d => d.diff);
     
-    // Trend Detection
     const recentDiffs = diffs.slice(-5);
     const trend = recentDiffs.reduce((sum, val) => sum + val, 0) / recentDiffs.length;
     
-    // Mean Reversion Pattern
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
     const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     const lastDiff = diffs[diffs.length - 1];
@@ -85,7 +82,6 @@ function App() {
       });
     }
     
-    // Momentum Pattern
     let consecutiveDirection = 0;
     for (let i = diffs.length - 1; i > diffs.length - 6 && i > 0; i--) {
       if ((diffs[i] - diffs[i-1]) * (diffs[i-1] - diffs[i-2]) > 0) {
@@ -105,7 +101,6 @@ function App() {
       });
     }
     
-    // Volatility Breakout
     const recentVolatility = recentDiffs.reduce((sum, val) => sum + Math.abs(val), 0) / recentDiffs.length;
     const historicalVolatility = diffs.slice(0, -5).reduce((sum, val) => sum + Math.abs(val), 0) / (diffs.length - 5);
     
@@ -118,7 +113,6 @@ function App() {
       });
     }
     
-    // Support/Resistance Levels
     const sortedDiffs = [...diffs].sort((a, b) => a - b);
     const q1 = sortedDiffs[Math.floor(sortedDiffs.length * 0.25)];
     const q3 = sortedDiffs[Math.floor(sortedDiffs.length * 0.75)];
@@ -142,7 +136,6 @@ function App() {
     return patterns;
   };
 
-  // Backtesting Engine
   const runBacktest = (chartData) => {
     if (chartData.length < 20) return null;
     
@@ -158,7 +151,6 @@ function App() {
       const currentDiff = chartData[i].diff;
       const nextDiff = chartData[i + 1].diff;
       
-      // Calculate mean and std dev
       const diffs = historicalData.map(d => d.diff);
       const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
       const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
@@ -166,7 +158,6 @@ function App() {
       let entryPrice = currentDiff;
       let exitPrice = nextDiff;
       
-      // Mean Reversion Strategy
       if (currentDiff > mean + 1.2 * stdDev) {
         const profitLoss = entryPrice - exitPrice;
         totalProfit += profitLoss;
@@ -218,15 +209,14 @@ function App() {
     };
   };
 
-  // Predictive Analysis
   const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info) => {
     if (!chartData.length || !patterns.length || !backtestResults) return null;
     
     const lastDiff = chartData[chartData.length - 1].diff;
     const diffs = chartData.map(d => d.diff);
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
+    const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     
-    // Weighted scoring system
     let longScore = 0;
     let shortScore = 0;
     
@@ -239,66 +229,133 @@ function App() {
       }
     });
     
-    // Backtest reliability factor
     const reliabilityMultiplier = parseFloat(backtestResults.winRate) / 100;
     longScore *= reliabilityMultiplier;
     shortScore *= reliabilityMultiplier;
     
-    // Mean reversion bias
     if (lastDiff > mean + 0.5) {
       shortScore += 15;
     } else if (lastDiff < mean - 0.5) {
       longScore += 15;
     }
     
-    // ALWAYS provide a recommendation, even if weak
-    const minThreshold = 15; // Lowered from 30 to always show something
+    let action, targetAsset, perpetualAction, confidence, reasoning, strategy, entryPrice, stopLoss, takeProfit;
     
-    // Determine action
-    let action, targetAsset, confidence, reasoning;
-    
-    if (longScore > shortScore && longScore > 30) {
+    if (longScore > shortScore && longScore > 15) {
       if (lastDiff > 0) {
         action = 'LONG';
         targetAsset = asset2Info.symbol;
-        reasoning = `${asset2Info.symbol} showing strength. Gap likely to widen further.`;
+        perpetualAction = `LONG ${asset2Info.symbol}`;
+        reasoning = `${asset2Info.symbol} showing momentum. Gap likely to widen further.`;
+        strategy = `LONG ${asset2Info.symbol} perpetual at current price. The asset is outperforming ${asset1Info.symbol} by ${lastDiff.toFixed(2)}% and momentum suggests continuation.`;
+        entryPrice = `Long ${asset2Info.symbol} now`;
+        stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% below entry`;
+        takeProfit = `Take profit: ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}% gain`;
       } else {
         action = 'LONG';
         targetAsset = asset1Info.symbol;
-        reasoning = `${asset1Info.symbol} oversold. Gap likely to narrow in favor of ${asset1Info.symbol}.`;
+        perpetualAction = `LONG ${asset1Info.symbol}`;
+        reasoning = `${asset1Info.symbol} oversold relative to ${asset2Info.symbol}. Mean reversion expected.`;
+        strategy = `LONG ${asset1Info.symbol} perpetual at current price. The asset is underperforming by ${Math.abs(lastDiff).toFixed(2)}% and likely to catch up to ${asset2Info.symbol}.`;
+        entryPrice = `Long ${asset1Info.symbol} now`;
+        stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% below entry`;
+        takeProfit = `Take profit: ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}% gain`;
       }
       confidence = Math.min(longScore, 100);
-    } else if (shortScore > longScore && shortScore > 30) {
+    } else if (shortScore > longScore && shortScore > 15) {
       if (lastDiff > 0) {
-        action = 'LONG';
-        targetAsset = asset1Info.symbol;
-        reasoning = `${asset2Info.symbol} overbought. Gap likely to narrow in favor of ${asset1Info.symbol}.`;
-      } else {
-        action = 'LONG';
+        action = 'SHORT';
         targetAsset = asset2Info.symbol;
-        reasoning = `Mean reversion expected. Gap likely to shift toward ${asset2Info.symbol}.`;
+        perpetualAction = `SHORT ${asset2Info.symbol}`;
+        reasoning = `${asset2Info.symbol} overbought relative to ${asset1Info.symbol}. Gap likely to narrow.`;
+        strategy = `SHORT ${asset2Info.symbol} perpetual at current price. The gap is extended at ${lastDiff.toFixed(2)}% and mean reversion is likely. Alternatively: LONG ${asset1Info.symbol} if you prefer long-only positions.`;
+        entryPrice = `Short ${asset2Info.symbol} now`;
+        stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% above entry`;
+        takeProfit = `Take profit: Gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
+      } else {
+        action = 'SHORT';
+        targetAsset = asset1Info.symbol;
+        perpetualAction = `SHORT ${asset1Info.symbol}`;
+        reasoning = `${asset1Info.symbol} overbought relative to ${asset2Info.symbol}. Reversal expected.`;
+        strategy = `SHORT ${asset1Info.symbol} perpetual at current price. The gap favors ${asset1Info.symbol} by ${Math.abs(lastDiff).toFixed(2)}% too much. Alternatively: LONG ${asset2Info.symbol} if you prefer long-only positions.`;
+        entryPrice = `Short ${asset1Info.symbol} now`;
+        stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% above entry`;
+        takeProfit = `Take profit: Gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
       }
       confidence = Math.min(shortScore, 100);
     } else {
-      action = 'HOLD';
-      targetAsset = 'NONE';
-      reasoning = 'Insufficient edge detected. Wait for clearer signal.';
-      confidence = 0;
+      if (Math.abs(lastDiff) < 0.5) {
+        if (lastDiff >= 0) {
+          action = 'LONG';
+          targetAsset = asset1Info.symbol;
+          perpetualAction = `LONG ${asset1Info.symbol}`;
+          reasoning = `Minimal gap detected. ${asset1Info.symbol} slightly lagging.`;
+          strategy = `WEAK SIGNAL: Consider small LONG position in ${asset1Info.symbol} perpetual. Gap is very small (${Math.abs(lastDiff).toFixed(2)}%), suggesting both assets are trading in sync. Wait for stronger signal or take small position for potential catch-up.`;
+          entryPrice = `Small long ${asset1Info.symbol}`;
+          confidence = 25;
+        } else {
+          action = 'LONG';
+          targetAsset = asset2Info.symbol;
+          perpetualAction = `LONG ${asset2Info.symbol}`;
+          reasoning = `Minimal gap detected. ${asset2Info.symbol} slightly lagging.`;
+          strategy = `WEAK SIGNAL: Consider small LONG position in ${asset2Info.symbol} perpetual. Gap is very small (${Math.abs(lastDiff).toFixed(2)}%), suggesting both assets are trading in sync. Wait for stronger signal or take small position for potential catch-up.`;
+          entryPrice = `Small long ${asset2Info.symbol}`;
+          confidence = 25;
+        }
+      } else {
+        if (lastDiff > 0) {
+          action = 'LONG';
+          targetAsset = asset1Info.symbol;
+          perpetualAction = `LONG ${asset1Info.symbol}`;
+          reasoning = `${asset1Info.symbol} underperforming. Potential value opportunity.`;
+          strategy = `MODERATE SIGNAL: LONG ${asset1Info.symbol} perpetual for mean reversion play. ${asset2Info.symbol} is ahead by ${lastDiff.toFixed(2)}%, presenting an opportunity for ${asset1Info.symbol} to catch up.`;
+          entryPrice = `Long ${asset1Info.symbol} now`;
+          confidence = Math.max(longScore, shortScore, 30);
+        } else {
+          action = 'LONG';
+          targetAsset = asset2Info.symbol;
+          perpetualAction = `LONG ${asset2Info.symbol}`;
+          reasoning = `${asset2Info.symbol} underperforming. Potential value opportunity.`;
+          strategy = `MODERATE SIGNAL: LONG ${asset2Info.symbol} perpetual for mean reversion play. ${asset1Info.symbol} is ahead by ${Math.abs(lastDiff).toFixed(2)}%, presenting an opportunity for ${asset2Info.symbol} to catch up.`;
+          entryPrice = `Long ${asset2Info.symbol} now`;
+          confidence = Math.max(longScore, shortScore, 30);
+        }
+      }
+      stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% from entry`;
+      takeProfit = `Take profit: ${(Math.abs(lastDiff - mean) * 0.5).toFixed(2)}% gain (conservative)`;
     }
     
-    // Risk assessment
     const volatility = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     const riskLevel = volatility > 2 ? 'HIGH' : volatility > 1 ? 'MEDIUM' : 'LOW';
     
-    // Expected outcome
     const expectedMove = lastDiff > mean ? -(Math.abs(lastDiff - mean) * 0.6) : Math.abs(lastDiff - mean) * 0.6;
     const targetPrice = lastDiff + expectedMove;
+    
+    let positionSize;
+    let leverage;
+    if (riskLevel === 'HIGH') {
+      positionSize = '1-2% of portfolio';
+      leverage = '2-3x leverage maximum';
+    } else if (riskLevel === 'MEDIUM') {
+      positionSize = '2-5% of portfolio';
+      leverage = '3-5x leverage recommended';
+    } else {
+      positionSize = '5-10% of portfolio';
+      leverage = '5-10x leverage possible';
+    }
     
     return {
       action,
       targetAsset,
+      perpetualAction,
       confidence: confidence.toFixed(1),
       reasoning,
+      strategy,
+      entryPrice,
+      stopLoss,
+      takeProfit,
+      positionSize,
+      leverage,
       currentGap: lastDiff.toFixed(2),
       targetGap: targetPrice.toFixed(2),
       expectedMove: expectedMove.toFixed(2),
@@ -427,7 +484,6 @@ function App() {
       setData(chartData);
       setTradingSignal(analyzeTradingSignal(chartData, asset1Info, asset2Info));
       
-      // Run Advanced Analysis
       const patterns = detectPatterns(chartData);
       const backtest = runBacktest(chartData);
       const prediction = generatePrediction(chartData, patterns, backtest, asset1Info, asset2Info);
@@ -570,7 +626,6 @@ function App() {
           </button>
         </div>
 
-        {/* AI PREDICTION BOX - ALWAYS SHOWN */}
         {algoAnalysis && algoAnalysis.prediction && (
           <div style={{
             backgroundColor: '#1f2937',
@@ -747,7 +802,6 @@ function App() {
           </div>
         )}
 
-        {/* BACKTEST RESULTS */}
         {backtestResults && (
           <div style={{
             backgroundColor: '#1f2937',
