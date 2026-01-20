@@ -199,6 +199,54 @@ function App() {
     };
   };
 
+  function generatePrediction(chartData, patterns, backtestResults, asset1Info, asset2Info) {
+    if (chartData.length === 0 || patterns.length === 0 || !backtestResults) {
+      return null;
+    }
+    
+    const lastDiff = chartData[chartData.length - 1].diff;
+    const diffs = [];
+    for (let i = 0; i < chartData.length; i++) {
+      diffs.push(chartData[i].diff);
+    }
+    
+    let sum = 0;
+    for (let i = 0; i < diffs.length; i++) {
+      sum = sum + diffs[i];
+    }
+    const mean = sum / diffs.length;
+    
+    let varianceSum = 0;
+    for (let i = 0; i < diffs.length; i++) {
+      const diff = diffs[i] - mean;
+      varianceSum = varianceSum + (diff * diff);
+    }
+    const variance = varianceSum / diffs.length;
+    const stdDev = Math.sqrt(variance);
+    
+    let longScore = 0;
+    let shortScore = 0;
+    
+    for (let i = 0; i < patterns.length; i++) {
+      const pattern = patterns[i];
+      const weight = pattern.strength / 100;
+      if (pattern.direction === 'LONG') {
+        longScore = longScore + (weight * 20);
+      } else if (pattern.direction === 'SHORT') {
+        shortScore = shortScore + (weight * 20);
+      }
+    }
+    
+    const reliabilityMultiplier = parseFloat(backtestResults.winRate) / 100;
+    longScore = longScore * reliabilityMultiplier;
+    shortScore = shortScore * reliabilityMultiplier;
+    
+    if (lastDiff > mean + 0.5) {
+      shortScore = shortScore + 15;
+    } else if (lastDiff < mean - 0.5) {
+      longScore = longScore + 15;
+    }
+    
   const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info) => {
     if (!chartData.length || !patterns.length || !backtestResults) return null;
     
@@ -229,29 +277,89 @@ function App() {
       longScore += 15;
     }
     
-    // PAIRS TRADING FILTERS (More lenient than directional)
-    // For pairs trading, we can accept lower thresholds because:
-    // 1. Market-neutral = lower risk
-    // 2. Profit from gap closure only
-    // 3. Hedged position protects from directional moves
-    const hasStatisticalEdge = (
-      parseFloat(backtestResults.winRate) >= 55 &&  // 55%+ win rate (lower than directional)
-      parseFloat(backtestResults.profitFactor) >= 1.2  // 1.2+ profit factor (achievable for pairs)
-    );
+    // DYNAMIC THRESHOLD CALCULATION based on backtest performance
+    // Calculate if this strategy is actually profitable after fees
+    const avgWin = parseFloat(backtestResults.avgWin);
+    const avgLoss = parseFloat(backtestResults.avgLoss);
+    const winRate = parseFloat(backtestResults.winRate) / 100;
+    const profitFactor = parseFloat(backtestResults.profitFactor);
     
-    const gapIsSignificant = Math.abs(lastDiff) >= 0.6;  // 0.6%+ gap (lower threshold for pairs)
+    // Assume 0.15% total fees per pairs trade (0.05% × 2 positions × 1.5 for funding)
+    const feePerTrade = 0.15;
     
-    let action, targetAsset, perpetualAction, confidence, reasoning, strategy, entryPrice, stopLoss, takeProfit, pairsTrade;
+    // Expected value per trade
+    const expectedValue = (winRate * avgWin) - ((1 - winRate) * avgLoss) - feePerTrade;
     
-    // Only trade if we have statistical edge AND significant gap
-    if (!hasStatisticalEdge || !gapIsSignificant) {
-      // FORCE SKIP - No trade recommendation
+    // Calculate minimum gap needed for profitability
+    // Larger gaps should have better success rates
+    const gapVolatilityRatio = Math.abs(lastDiff) / stdDev;
+    
+    // Dynamic thresholds based on actual backtest performance
+    let minWinRate, minProfitFactor, minGap, skipReason;
+    
+    // Tier 1: Excellent backtest - trade more freely
+    if (profitFactor >= 2.0 && winRate >= 0.65) {
+      minWinRate = 60;
+      minProfitFactor = 1.8;
+      minGap = 0.7;
+      skipReason = 'excellent';
+    }
+    // Tier 2: Good backtest - standard requirements
+    else if (profitFactor >= 1.5 && winRate >= 0.60) {
+      minWinRate = 65;
+      minProfitFactor = 1.5;
+      minGap = 1.0;
+      skipReason = 'good';
+    }
+    // Tier 3: Marginal backtest - very strict
+    else if (profitFactor >= 1.2 && winRate >= 0.55) {
+      minWinRate = 70;
+      minProfitFactor = 1.8;
+      minGap = 1.5;
+      skipReason = 'marginal';
+    }
+    // Tier 4: Poor backtest - don't trade at all
+    else {
+      minWinRate = 999; // Impossible to meet
+      minProfitFactor = 999;
+      minGap = 999;
+      skipReason = 'losing';
+    }
+    
+    const meetsWinRate = parseFloat(backtestResults.winRate) >= minWinRate;
+    const meetsProfitFactor = profitFactor >= minProfitFactor;
+    const meetsGap = Math.abs(lastDiff) >= minGap;
+    const isProfitable = expectedValue > 0;
+    
+    let action, targetAsset, perpetualAction, confidence, reasoning, strategy, entryPrice, stopLoss, takeProfit, pairsTrade, autoThresholds;
+    
+    autoThresholds = {
+      tier: skipReason === 'excellent' ? 'EXCELLENT' : skipReason === 'good' ? 'GOOD' : skipReason === 'marginal' ? 'MARGINAL' : 'POOR',
+      minWinRate,
+      minProfitFactor,
+      minGap,
+      expectedValue: expectedValue.toFixed(3),
+      isProfitable,
+      meetsWinRate,
+      meetsProfitFactor,
+      meetsGap
+    };
+    
+    // Only trade if ALL criteria met AND expected value is positive
+    if (!meetsWinRate || !meetsProfitFactor || !meetsGap || !isProfitable) {
       action = 'SKIP';
       targetAsset = 'NONE';
       perpetualAction = 'NO TRADE';
-      reasoning = `Insufficient edge for pairs trade. ${!hasStatisticalEdge ? `Backtest shows ${backtestResults.winRate}% win rate (need 55%+) and ${backtestResults.profitFactor} profit factor (need 1.2+).` : ''} ${!gapIsSignificant ? `Gap is only ${Math.abs(lastDiff).toFixed(2)}% (need 0.6%+ minimum for pairs).` : ''}`;
-      strategy = `WAIT for better pairs setup. Requirements: (1) Backtest win rate ≥ 55%, (2) Profit factor ≥ 1.2, (3) Gap ≥ 0.6%. Current conditions don't meet pairs trading criteria.`;
-      entryPrice = 'No entry - skip this signal';
+      
+      let reasons = [];
+      if (!isProfitable) reasons.push(`Expected value is NEGATIVE (${expectedValue.toFixed(3)}% per trade after fees)`);
+      if (!meetsWinRate) reasons.push(`Win rate ${backtestResults.winRate}% < ${minWinRate}% required`);
+      if (!meetsProfitFactor) reasons.push(`Profit factor ${profitFactor.toFixed(2)} < ${minProfitFactor} required`);
+      if (!meetsGap) reasons.push(`Gap ${Math.abs(lastDiff).toFixed(2)}% < ${minGap}% required`);
+      
+      reasoning = reasons.join('. ');
+      strategy = `⚠️ SKIP THIS TRADE - Backtest tier: ${autoThresholds.tier}. ${reasoning}. The AI has automatically calculated that this setup will LOSE money after fees. Wait for better conditions.`;
+      entryPrice = 'No entry - mathematically unprofitable';
       stopLoss = 'N/A';
       takeProfit = 'N/A';
       pairsTrade = null;
@@ -297,13 +405,11 @@ function App() {
       confidence = Math.min(longScore, 100);
     } else if (shortScore > longScore && shortScore > 5) {
       if (lastDiff > 0) {
-        // ETH is outperforming BTC (positive gap) - too extended
-        // Pairs Trade: SHORT ETH + LONG BTC (gap widened too much, reversal expected)
         action = 'PAIRS';
         targetAsset = asset1Info.symbol;
         perpetualAction = `PAIRS TRADE`;
-        reasoning = `${asset2Info.symbol} overbought, ahead by ${lastDiff.toFixed(2)}%. Reversal expected - gap should collapse.`;
-        strategy = `PAIRS TRADE: LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol} with EQUAL $ amounts. Gap is overextended at ${lastDiff.toFixed(2)}%, mean reversion likely. Profit from gap narrowing regardless of market direction.`;
+        reasoning = `${asset2Info.symbol} ahead by ${lastDiff.toFixed(2)}%. Mean reversion expected - gap should narrow.`;
+        strategy = `PAIRS TRADE: LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol} with EQUAL $ amounts. Gap is overextended at ${lastDiff.toFixed(2)}%, mean reversion likely.`;
         entryPrice = `Execute both positions simultaneously`;
         stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
         takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
@@ -315,13 +421,11 @@ function App() {
           expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
         };
       } else {
-        // BTC is outperforming ETH (negative gap) - too extended
-        // Pairs Trade: SHORT BTC + LONG ETH (gap widened too much, reversal expected)
         action = 'PAIRS';
         targetAsset = asset2Info.symbol;
         perpetualAction = `PAIRS TRADE`;
-        reasoning = `${asset1Info.symbol} overbought, ahead by ${Math.abs(lastDiff).toFixed(2)}%. Reversal expected - gap should collapse.`;
-        strategy = `PAIRS TRADE: LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol} with EQUAL $ amounts. Gap is overextended at ${Math.abs(lastDiff).toFixed(2)}%, mean reversion likely. Profit from gap narrowing regardless of market direction.`;
+        reasoning = `${asset1Info.symbol} ahead by ${Math.abs(lastDiff).toFixed(2)}%. Mean reversion expected - gap should narrow.`;
+        strategy = `PAIRS TRADE: LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol} with EQUAL $ amounts. Gap is overextended at ${Math.abs(lastDiff).toFixed(2)}%, mean reversion likely.`;
         entryPrice = `Execute both positions simultaneously`;
         stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
         takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
@@ -334,6 +438,75 @@ function App() {
         };
       }
       confidence = Math.min(shortScore, 100);
+    } else {
+      if (Math.abs(lastDiff) < 0.5) {
+        if (lastDiff >= 0) {
+          action = 'PAIRS';
+          targetAsset = asset1Info.symbol;
+          perpetualAction = `PAIRS TRADE`;
+          reasoning = `Minimal gap detected. ${asset1Info.symbol} slightly lagging.`;
+          strategy = `WEAK SIGNAL: PAIRS TRADE with LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol}.`;
+          entryPrice = `Small pairs position`;
+          pairsTrade = {
+            long: asset1Info.symbol,
+            short: asset2Info.symbol,
+            currentGap: lastDiff.toFixed(2),
+            targetGap: '0.00',
+            expectedProfit: Math.abs(lastDiff).toFixed(2)
+          };
+          confidence = 25;
+        } else {
+          action = 'PAIRS';
+          targetAsset = asset2Info.symbol;
+          perpetualAction = `PAIRS TRADE`;
+          reasoning = `Minimal gap detected. ${asset2Info.symbol} slightly lagging.`;
+          strategy = `WEAK SIGNAL: PAIRS TRADE with LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol}.`;
+          entryPrice = `Small pairs position`;
+          pairsTrade = {
+            long: asset2Info.symbol,
+            short: asset1Info.symbol,
+            currentGap: lastDiff.toFixed(2),
+            targetGap: '0.00',
+            expectedProfit: Math.abs(lastDiff).toFixed(2)
+          };
+          confidence = 25;
+        }
+      } else {
+        if (lastDiff > 0) {
+          action = 'PAIRS';
+          targetAsset = asset1Info.symbol;
+          perpetualAction = `PAIRS TRADE`;
+          reasoning = `${asset1Info.symbol} underperforming. Potential value opportunity.`;
+          strategy = `MODERATE SIGNAL: PAIRS TRADE with LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol} for mean reversion.`;
+          entryPrice = `Execute pairs trade now`;
+          pairsTrade = {
+            long: asset1Info.symbol,
+            short: asset2Info.symbol,
+            currentGap: lastDiff.toFixed(2),
+            targetGap: (lastDiff - (Math.abs(lastDiff - mean) * 0.5)).toFixed(2),
+            expectedProfit: (Math.abs(lastDiff - mean) * 0.5).toFixed(2)
+          };
+          confidence = Math.max(longScore, shortScore, 30);
+        } else {
+          action = 'PAIRS';
+          targetAsset = asset2Info.symbol;
+          perpetualAction = `PAIRS TRADE`;
+          reasoning = `${asset2Info.symbol} underperforming. Potential value opportunity.`;
+          strategy = `MODERATE SIGNAL: PAIRS TRADE with LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol} for mean reversion.`;
+          entryPrice = `Execute pairs trade now`;
+          pairsTrade = {
+            long: asset2Info.symbol,
+            short: asset1Info.symbol,
+            currentGap: lastDiff.toFixed(2),
+            targetGap: (lastDiff + (Math.abs(lastDiff - mean) * 0.5)).toFixed(2),
+            expectedProfit: (Math.abs(lastDiff - mean) * 0.5).toFixed(2)
+          };
+          confidence = Math.max(longScore, shortScore, 30);
+        }
+      }
+      stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
+      takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.5).toFixed(2)}%`;
+    }
     } else {
       if (Math.abs(lastDiff) < 0.5) {
         if (lastDiff >= 0) {
@@ -398,6 +571,7 @@ function App() {
       targetAsset,
       perpetualAction,
       pairsTrade,
+      autoThresholds,
       confidence: confidence.toFixed(1),
       reasoning,
       strategy,
@@ -416,7 +590,7 @@ function App() {
                    interval === '15m' || interval === '30m' ? 'Short (Hours)' :
                    interval === '1h' || interval === '2h' || interval === '4h' ? 'Medium (Hours-Days)' : 'Long (Days-Weeks)'
     };
-  };
+  }
 
   const loadData = async () => {
     setLoading(true);
@@ -911,7 +1085,100 @@ function App() {
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    {backtestResults && (
+                    {backtestResults && (!algoAnalysis?.prediction || algoAnalysis.prediction.action === 'SKIP') && (
+          <div style={{
+            backgroundColor: '#1f2937',
+            borderLeft: '1px solid #374151',
+            borderRight: '1px solid #374151',
+            padding: '24px'
+          }}>
+            <div style={{
+              borderRadius: '12px',
+              padding: '24px',
+              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(127, 29, 29, 0.2) 100%)',
+              border: '2px solid rgba(239, 68, 68, 0.4)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ fontSize: '40px' }}>🚫</div>
+                <div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f87171' }}>
+                    NO TRADE SIGNAL
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#fca5a5', marginTop: '4px' }}>
+                    Current setup doesn't meet profitability criteria
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ 
+                padding: '16px',
+                backgroundColor: 'rgba(0,0,0,0.4)',
+                borderRadius: '8px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ fontSize: '14px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '12px' }}>
+                  ⚠️ WHY NO SIGNAL?
+                </div>
+                <div style={{ fontSize: '14px', color: '#e5e7eb', lineHeight: '1.6' }}>
+                  {algoAnalysis?.prediction?.reasoning || `Analyzing... Current gap: ${data.length > 0 ? data[data.length - 1].diff.toFixed(2) : '0.00'}%`}
+                </div>
+              </div>
+
+              <div style={{ 
+                padding: '16px',
+                backgroundColor: 'rgba(0,0,0,0.3)',
+                borderRadius: '8px'
+              }}>
+                <div style={{ fontSize: '13px', color: '#9ca3af', fontWeight: 'bold', marginBottom: '12px' }}>
+                  📊 CURRENT METRICS vs REQUIREMENTS:
+                </div>
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: '#d1d5db' }}>Win Rate:</span>
+                    <span style={{ 
+                      color: parseFloat(backtestResults.winRate) >= 65 ? '#34d399' : '#f87171',
+                      fontWeight: 'bold'
+                    }}>
+                      {backtestResults.winRate}% {parseFloat(backtestResults.winRate) >= 65 ? '✅' : `❌ (need 65%+)`}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: '#d1d5db' }}>Profit Factor:</span>
+                    <span style={{ 
+                      color: parseFloat(backtestResults.profitFactor) >= 1.5 ? '#34d399' : '#f87171',
+                      fontWeight: 'bold'
+                    }}>
+                      {backtestResults.profitFactor} {parseFloat(backtestResults.profitFactor) >= 1.5 ? '✅' : `❌ (need 1.5+)`}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: '#d1d5db' }}>Current Gap:</span>
+                    <span style={{ 
+                      color: data.length > 0 && Math.abs(data[data.length - 1].diff) >= 1.0 ? '#34d399' : '#f87171',
+                      fontWeight: 'bold'
+                    }}>
+                      {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}% {data.length > 0 && Math.abs(data[data.length - 1].diff) >= 1.0 ? '✅' : `❌ (need 1.0%+)`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ 
+                marginTop: '16px',
+                padding: '12px',
+                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                borderRadius: '8px',
+                borderLeft: '3px solid #3b82f6'
+              }}>
+                <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
+                  💡 <strong>NOTE:</strong> These thresholds are ESTIMATED and should be adjusted based on YOUR live trading results. Track every trade for 2-4 weeks, then optimize thresholds for maximum profitability.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {backtestResults && (
                       <>
                         <div style={{ 
                           fontSize: '24px', 
