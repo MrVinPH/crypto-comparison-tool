@@ -38,6 +38,11 @@ function App() {
   const [priceInfo, setPriceInfo] = useState({ asset1: null, asset2: null });
   const [algoAnalysis, setAlgoAnalysis] = useState(null);
   const [backtestResults, setBacktestResults] = useState(null);
+  const [manualThresholds, setManualThresholds] = useState({
+    minWinRate: 65,
+    minProfitFactor: 1.5,
+    minGap: 1.0
+  });
 
   const getAssetInfo = (assetId) => CRYPTO_OPTIONS.find(a => a.id === assetId) || CRYPTO_OPTIONS[0];
 
@@ -241,37 +246,10 @@ function App() {
     // Expected value per trade
     const expectedValue = (winRate * avgWin) - ((1 - winRate) * avgLoss) - feePerTrade;
     
-    // Dynamic thresholds based on actual backtest performance
-    let minWinRate, minProfitFactor, minGap, skipReason;
-    
-    // Tier 1: Excellent backtest - trade more freely
-    if (profitFactor >= 2.0 && winRate >= 0.65) {
-      minWinRate = 60;
-      minProfitFactor = 1.8;
-      minGap = 0.7;
-      skipReason = 'excellent';
-    }
-    // Tier 2: Good backtest - standard requirements
-    else if (profitFactor >= 1.5 && winRate >= 0.60) {
-      minWinRate = 65;
-      minProfitFactor = 1.5;
-      minGap = 1.0;
-      skipReason = 'good';
-    }
-    // Tier 3: Marginal backtest - very strict
-    else if (profitFactor >= 1.2 && winRate >= 0.55) {
-      minWinRate = 70;
-      minProfitFactor = 1.8;
-      minGap = 1.5;
-      skipReason = 'marginal';
-    }
-    // Tier 4: Poor backtest - don't trade at all
-    else {
-      minWinRate = 999;
-      minProfitFactor = 999;
-      minGap = 999;
-      skipReason = 'losing';
-    }
+    // Use manual thresholds set by user
+    const minWinRate = manualThresholds.minWinRate;
+    const minProfitFactor = manualThresholds.minProfitFactor;
+    const minGap = manualThresholds.minGap;
     
     const meetsWinRate = parseFloat(backtestResults.winRate) >= minWinRate;
     const meetsProfitFactor = profitFactor >= minProfitFactor;
@@ -281,7 +259,7 @@ function App() {
     let action, targetAsset, perpetualAction, confidence, reasoning, strategy, entryPrice, stopLoss, takeProfit, pairsTrade, autoThresholds;
     
     autoThresholds = {
-      tier: skipReason === 'excellent' ? 'EXCELLENT' : skipReason === 'good' ? 'GOOD' : skipReason === 'marginal' ? 'MARGINAL' : 'POOR',
+      tier: 'MANUAL',
       minWinRate,
       minProfitFactor,
       minGap,
@@ -305,8 +283,8 @@ function App() {
       if (!meetsGap) reasons.push(`Gap ${Math.abs(lastDiff).toFixed(2)}% < ${minGap}% required`);
       
       reasoning = reasons.join('. ');
-      strategy = `⚠️ SKIP THIS TRADE - Backtest tier: ${autoThresholds.tier}. ${reasoning}. The AI has automatically calculated that this setup will LOSE money after fees. Wait for better conditions.`;
-      entryPrice = 'No entry - mathematically unprofitable';
+      strategy = `⚠️ SKIP THIS TRADE - Manual thresholds not met. ${reasoning}. The AI has calculated that this setup doesn't meet your criteria. Wait for better conditions.`;
+      entryPrice = 'No entry - criteria not met';
       stopLoss = 'N/A';
       takeProfit = 'N/A';
       pairsTrade = null;
@@ -1200,7 +1178,110 @@ function App() {
           borderRight: '1px solid #374151',
           padding: '24px'
         }}>
-          {error && (
+          <h3 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+            🎯 Manual Threshold Settings
+          </h3>
+          <div style={{ 
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '8px',
+            padding: '20px'
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                  Minimum Win Rate (%)
+                </label>
+                <input 
+                  type="number" 
+                  value={manualThresholds.minWinRate}
+                  onChange={(e) => setManualThresholds({...manualThresholds, minWinRate: parseFloat(e.target.value) || 0})}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    backgroundColor: '#374151',
+                    color: 'white',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    fontSize: '16px'
+                  }}
+                  min="0"
+                  max="100"
+                  step="1"
+                />
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  Current backtest: {backtestResults?.winRate}%
+                </div>
+              </div>
+              
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                  Minimum Profit Factor
+                </label>
+                <input 
+                  type="number" 
+                  value={manualThresholds.minProfitFactor}
+                  onChange={(e) => setManualThresholds({...manualThresholds, minProfitFactor: parseFloat(e.target.value) || 0})}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    backgroundColor: '#374151',
+                    color: 'white',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    fontSize: '16px'
+                  }}
+                  min="0"
+                  max="10"
+                  step="0.1"
+                />
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  Current backtest: {backtestResults?.profitFactor}
+                </div>
+              </div>
+              
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                  Minimum Gap (%)
+                </label>
+                <input 
+                  type="number" 
+                  value={manualThresholds.minGap}
+                  onChange={(e) => setManualThresholds({...manualThresholds, minGap: parseFloat(e.target.value) || 0})}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    backgroundColor: '#374151',
+                    color: 'white',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    fontSize: '16px'
+                  }}
+                  min="0"
+                  max="10"
+                  step="0.1"
+                />
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  Current gap: {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}%
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ 
+              marginTop: '16px',
+              padding: '12px',
+              backgroundColor: 'rgba(59, 130, 246, 0.15)',
+              borderRadius: '8px',
+              borderLeft: '3px solid #3b82f6'
+            }}>
+              <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
+                💡 <strong>TIP:</strong> Start conservative (65% win rate, 1.5 profit factor, 1.0% gap) and adjust based on your live trading results. Lower thresholds = more trades but lower quality. Higher thresholds = fewer trades but better quality.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {error && (
             <div style={{
               marginBottom: '16px',
               backgroundColor: 'rgba(127, 29, 29, 0.5)',
