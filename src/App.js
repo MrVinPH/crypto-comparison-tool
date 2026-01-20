@@ -229,48 +229,105 @@ function App() {
       longScore += 15;
     }
     
-    let action, targetAsset, perpetualAction, confidence, reasoning, strategy, entryPrice, stopLoss, takeProfit;
+    // CRITICAL FILTER: Only generate signals when there's REAL edge
+    const hasStatisticalEdge = (
+      parseFloat(backtestResults.winRate) >= 60 &&  // Must win 60%+ of the time
+      parseFloat(backtestResults.profitFactor) >= 1.5  // Wins must be 1.5x bigger than losses
+    );
     
-    if (longScore > shortScore && longScore > 5) {
+    const gapIsSignificant = Math.abs(lastDiff) >= 1.0;  // Gap must be at least 1%
+    
+    let action, targetAsset, perpetualAction, confidence, reasoning, strategy, entryPrice, stopLoss, takeProfit, pairsTrade;
+    
+    // Only trade if we have statistical edge AND significant gap
+    if (!hasStatisticalEdge || !gapIsSignificant) {
+      // FORCE SKIP - No trade recommendation
+      action = 'SKIP';
+      targetAsset = 'NONE';
+      perpetualAction = 'NO TRADE';
+      reasoning = `Insufficient edge. ${!hasStatisticalEdge ? `Backtest shows ${backtestResults.winRate}% win rate (need 60%+) and ${backtestResults.profitFactor} profit factor (need 1.5+).` : ''} ${!gapIsSignificant ? `Gap is only ${Math.abs(lastDiff).toFixed(2)}% (need 1%+ minimum).` : ''}`;
+      strategy = `WAIT for better setup. Do not trade until: (1) Backtest win rate ≥ 60%, (2) Profit factor ≥ 1.5, (3) Gap ≥ 1.0%. Current conditions don't meet profitability criteria.`;
+      entryPrice = 'No entry - skip this signal';
+      stopLoss = 'N/A';
+      takeProfit = 'N/A';
+      pairsTrade = null;
+      confidence = 0;
+    } else if (longScore > shortScore && longScore > 5) {
       if (lastDiff > 0) {
-        action = 'LONG';
-        targetAsset = asset2Info.symbol;
-        perpetualAction = `LONG ${asset2Info.symbol}`;
-        reasoning = `${asset2Info.symbol} showing momentum. Gap likely to widen further.`;
-        strategy = `LONG ${asset2Info.symbol} perpetual at current price. The asset is outperforming ${asset1Info.symbol} by ${lastDiff.toFixed(2)}% and momentum suggests continuation.`;
-        entryPrice = `Long ${asset2Info.symbol} now`;
-        stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% below entry`;
-        takeProfit = `Take profit: ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}% gain`;
-      } else {
-        action = 'LONG';
+        // ETH is outperforming BTC (positive gap)
+        // Pairs Trade: LONG BTC + SHORT ETH (gap should close, BTC catches up)
+        action = 'PAIRS';
         targetAsset = asset1Info.symbol;
-        perpetualAction = `LONG ${asset1Info.symbol}`;
-        reasoning = `${asset1Info.symbol} oversold relative to ${asset2Info.symbol}. Mean reversion expected.`;
-        strategy = `LONG ${asset1Info.symbol} perpetual at current price. The asset is underperforming by ${Math.abs(lastDiff).toFixed(2)}% and likely to catch up to ${asset2Info.symbol}.`;
-        entryPrice = `Long ${asset1Info.symbol} now`;
-        stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% below entry`;
-        takeProfit = `Take profit: ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}% gain`;
+        perpetualAction = `PAIRS TRADE`;
+        reasoning = `${asset2Info.symbol} ahead by ${lastDiff.toFixed(2)}%. Mean reversion expected - gap should narrow.`;
+        strategy = `PAIRS TRADE: LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol} with EQUAL $ amounts. ${asset2Info.symbol} is ${lastDiff.toFixed(2)}% ahead, creating opportunity for ${asset1Info.symbol} to catch up. Profit from gap closure regardless of market direction.`;
+        entryPrice = `Execute both positions simultaneously`;
+        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
+        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
+        pairsTrade = {
+          long: asset1Info.symbol,
+          short: asset2Info.symbol,
+          currentGap: lastDiff.toFixed(2),
+          targetGap: (lastDiff - (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
+          expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
+        };
+      } else {
+        // BTC is outperforming ETH (negative gap)
+        // Pairs Trade: LONG ETH + SHORT BTC (gap should close, ETH catches up)
+        action = 'PAIRS';
+        targetAsset = asset2Info.symbol;
+        perpetualAction = `PAIRS TRADE`;
+        reasoning = `${asset1Info.symbol} ahead by ${Math.abs(lastDiff).toFixed(2)}%. Mean reversion expected - gap should narrow.`;
+        strategy = `PAIRS TRADE: LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol} with EQUAL $ amounts. ${asset1Info.symbol} is ${Math.abs(lastDiff).toFixed(2)}% ahead, creating opportunity for ${asset2Info.symbol} to catch up. Profit from gap closure regardless of market direction.`;
+        entryPrice = `Execute both positions simultaneously`;
+        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
+        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
+        pairsTrade = {
+          long: asset2Info.symbol,
+          short: asset1Info.symbol,
+          currentGap: lastDiff.toFixed(2),
+          targetGap: (lastDiff + (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
+          expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
+        };
       }
       confidence = Math.min(longScore, 100);
     } else if (shortScore > longScore && shortScore > 5) {
       if (lastDiff > 0) {
-        action = 'SHORT';
-        targetAsset = asset2Info.symbol;
-        perpetualAction = `SHORT ${asset2Info.symbol}`;
-        reasoning = `${asset2Info.symbol} overbought relative to ${asset1Info.symbol}. Gap likely to narrow.`;
-        strategy = `SHORT ${asset2Info.symbol} perpetual at current price. The gap is extended at ${lastDiff.toFixed(2)}% and mean reversion is likely.`;
-        entryPrice = `Short ${asset2Info.symbol} now`;
-        stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% above entry`;
-        takeProfit = `Take profit: Gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
-      } else {
-        action = 'SHORT';
+        // ETH is outperforming BTC (positive gap) - too extended
+        // Pairs Trade: SHORT ETH + LONG BTC (gap widened too much, reversal expected)
+        action = 'PAIRS';
         targetAsset = asset1Info.symbol;
-        perpetualAction = `SHORT ${asset1Info.symbol}`;
-        reasoning = `${asset1Info.symbol} overbought relative to ${asset2Info.symbol}. Reversal expected.`;
-        strategy = `SHORT ${asset1Info.symbol} perpetual at current price. The gap favors ${asset1Info.symbol} by ${Math.abs(lastDiff).toFixed(2)}% too much.`;
-        entryPrice = `Short ${asset1Info.symbol} now`;
-        stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% above entry`;
-        takeProfit = `Take profit: Gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
+        perpetualAction = `PAIRS TRADE`;
+        reasoning = `${asset2Info.symbol} overbought, ahead by ${lastDiff.toFixed(2)}%. Reversal expected - gap should collapse.`;
+        strategy = `PAIRS TRADE: LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol} with EQUAL $ amounts. Gap is overextended at ${lastDiff.toFixed(2)}%, mean reversion likely. Profit from gap narrowing regardless of market direction.`;
+        entryPrice = `Execute both positions simultaneously`;
+        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
+        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
+        pairsTrade = {
+          long: asset1Info.symbol,
+          short: asset2Info.symbol,
+          currentGap: lastDiff.toFixed(2),
+          targetGap: (lastDiff - (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
+          expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
+        };
+      } else {
+        // BTC is outperforming ETH (negative gap) - too extended
+        // Pairs Trade: SHORT BTC + LONG ETH (gap widened too much, reversal expected)
+        action = 'PAIRS';
+        targetAsset = asset2Info.symbol;
+        perpetualAction = `PAIRS TRADE`;
+        reasoning = `${asset1Info.symbol} overbought, ahead by ${Math.abs(lastDiff).toFixed(2)}%. Reversal expected - gap should collapse.`;
+        strategy = `PAIRS TRADE: LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol} with EQUAL $ amounts. Gap is overextended at ${Math.abs(lastDiff).toFixed(2)}%, mean reversion likely. Profit from gap narrowing regardless of market direction.`;
+        entryPrice = `Execute both positions simultaneously`;
+        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
+        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
+        pairsTrade = {
+          long: asset2Info.symbol,
+          short: asset1Info.symbol,
+          currentGap: lastDiff.toFixed(2),
+          targetGap: (lastDiff + (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
+          expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
+        };
       }
       confidence = Math.min(shortScore, 100);
     } else {
@@ -336,6 +393,7 @@ function App() {
       action,
       targetAsset,
       perpetualAction,
+      pairsTrade,
       confidence: confidence.toFixed(1),
       reasoning,
       strategy,
@@ -578,7 +636,7 @@ function App() {
           </button>
         </div>
 
-        {algoAnalysis && algoAnalysis.prediction && (
+        {algoAnalysis && algoAnalysis.prediction && algoAnalysis.prediction.action !== 'SKIP' && (
           <>
             <div style={{
               backgroundColor: '#1f2937',
@@ -641,11 +699,57 @@ function App() {
                     }}>
                       <div style={{ fontSize: '14px', color: '#34d399', marginBottom: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '18px' }}>💡</span>
-                        TRADING STRATEGY
+                        PAIRS TRADING STRATEGY
                       </div>
                       <p style={{ color: '#e5e7eb', fontSize: '16px', lineHeight: '1.7', marginBottom: '16px' }}>
                         {algoAnalysis.prediction.strategy}
                       </p>
+                      
+                      {algoAnalysis.prediction.pairsTrade && (
+                        <div style={{
+                          padding: '16px',
+                          backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                          borderRadius: '8px',
+                          border: '2px solid rgba(34, 197, 94, 0.4)',
+                          marginBottom: '16px'
+                        }}>
+                          <div style={{ fontSize: '14px', color: '#6ee7b7', fontWeight: 'bold', marginBottom: '12px' }}>
+                            📊 EXECUTE BOTH POSITIONS (EQUAL $ AMOUNT)
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <div style={{ 
+                              padding: '12px',
+                              backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(16, 185, 129, 0.4)'
+                            }}>
+                              <div style={{ fontSize: '12px', color: '#6ee7b7', marginBottom: '4px' }}>LONG Position</div>
+                              <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#34d399' }}>
+                                LONG {algoAnalysis.prediction.pairsTrade.long}
+                              </div>
+                            </div>
+                            <div style={{ 
+                              padding: '12px',
+                              backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(239, 68, 68, 0.4)'
+                            }}>
+                              <div style={{ fontSize: '12px', color: '#fca5a5', marginBottom: '4px' }}>SHORT Position</div>
+                              <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f87171' }}>
+                                SHORT {algoAnalysis.prediction.pairsTrade.short}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ marginTop: '12px', padding: '10px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
+                            <div style={{ fontSize: '13px', color: '#d1d5db', marginBottom: '4px' }}>
+                              Expected Profit: <span style={{ color: '#34d399', fontWeight: 'bold' }}>+{algoAnalysis.prediction.pairsTrade.expectedProfit}%</span> (from gap closure)
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#9ca3af' }}>
+                              Current Gap: {algoAnalysis.prediction.pairsTrade.currentGap}% → Target Gap: {algoAnalysis.prediction.pairsTrade.targetGap}%
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       
                       <div style={{ display: 'grid', gap: '12px' }}>
                         <div style={{ 
