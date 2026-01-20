@@ -64,10 +64,8 @@ function App() {
     
     const patterns = [];
     const diffs = chartData.map(d => d.diff);
-    
     const recentDiffs = diffs.slice(-5);
     const trend = recentDiffs.reduce((sum, val) => sum + val, 0) / recentDiffs.length;
-    
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
     const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     const lastDiff = diffs[diffs.length - 1];
@@ -142,28 +140,23 @@ function App() {
     let wins = 0;
     let losses = 0;
     let totalProfit = 0;
-    
     const lookbackPeriod = 10;
     
     for (let i = lookbackPeriod; i < chartData.length - 1; i++) {
       const historicalData = chartData.slice(i - lookbackPeriod, i);
       const currentDiff = chartData[i].diff;
       const nextDiff = chartData[i + 1].diff;
-      
       const diffs = historicalData.map(d => d.diff);
       const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
       const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
-      
       let entryPrice = currentDiff;
       let exitPrice = nextDiff;
       
       if (currentDiff > mean + 1.2 * stdDev) {
         const profitLoss = entryPrice - exitPrice;
         totalProfit += profitLoss;
-        
         if (profitLoss > 0) wins++;
         else losses++;
-        
         trades.push({
           entry: i,
           signal: 'SHORT_GAP',
@@ -175,10 +168,8 @@ function App() {
       } else if (currentDiff < mean - 1.2 * stdDev) {
         const profitLoss = exitPrice - entryPrice;
         totalProfit += profitLoss;
-        
         if (profitLoss > 0) wins++;
         else losses++;
-        
         trades.push({
           entry: i,
           signal: 'LONG_GAP',
@@ -267,7 +258,7 @@ function App() {
         targetAsset = asset2Info.symbol;
         perpetualAction = `SHORT ${asset2Info.symbol}`;
         reasoning = `${asset2Info.symbol} overbought relative to ${asset1Info.symbol}. Gap likely to narrow.`;
-        strategy = `SHORT ${asset2Info.symbol} perpetual at current price. The gap is extended at ${lastDiff.toFixed(2)}% and mean reversion is likely. Alternatively: LONG ${asset1Info.symbol} if you prefer long-only positions.`;
+        strategy = `SHORT ${asset2Info.symbol} perpetual at current price. The gap is extended at ${lastDiff.toFixed(2)}% and mean reversion is likely.`;
         entryPrice = `Short ${asset2Info.symbol} now`;
         stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% above entry`;
         takeProfit = `Take profit: Gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
@@ -276,7 +267,7 @@ function App() {
         targetAsset = asset1Info.symbol;
         perpetualAction = `SHORT ${asset1Info.symbol}`;
         reasoning = `${asset1Info.symbol} overbought relative to ${asset2Info.symbol}. Reversal expected.`;
-        strategy = `SHORT ${asset1Info.symbol} perpetual at current price. The gap favors ${asset1Info.symbol} by ${Math.abs(lastDiff).toFixed(2)}% too much. Alternatively: LONG ${asset2Info.symbol} if you prefer long-only positions.`;
+        strategy = `SHORT ${asset1Info.symbol} perpetual at current price. The gap favors ${asset1Info.symbol} by ${Math.abs(lastDiff).toFixed(2)}% too much.`;
         entryPrice = `Short ${asset1Info.symbol} now`;
         stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% above entry`;
         takeProfit = `Take profit: Gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
@@ -289,7 +280,7 @@ function App() {
           targetAsset = asset1Info.symbol;
           perpetualAction = `LONG ${asset1Info.symbol}`;
           reasoning = `Minimal gap detected. ${asset1Info.symbol} slightly lagging.`;
-          strategy = `WEAK SIGNAL: Consider small LONG position in ${asset1Info.symbol} perpetual. Gap is very small (${Math.abs(lastDiff).toFixed(2)}%), suggesting both assets are trading in sync. Wait for stronger signal or take small position for potential catch-up.`;
+          strategy = `WEAK SIGNAL: Consider small LONG position in ${asset1Info.symbol} perpetual.`;
           entryPrice = `Small long ${asset1Info.symbol}`;
           confidence = 25;
         } else {
@@ -297,7 +288,7 @@ function App() {
           targetAsset = asset2Info.symbol;
           perpetualAction = `LONG ${asset2Info.symbol}`;
           reasoning = `Minimal gap detected. ${asset2Info.symbol} slightly lagging.`;
-          strategy = `WEAK SIGNAL: Consider small LONG position in ${asset2Info.symbol} perpetual. Gap is very small (${Math.abs(lastDiff).toFixed(2)}%), suggesting both assets are trading in sync. Wait for stronger signal or take small position for potential catch-up.`;
+          strategy = `WEAK SIGNAL: Consider small LONG position in ${asset2Info.symbol} perpetual.`;
           entryPrice = `Small long ${asset2Info.symbol}`;
           confidence = 25;
         }
@@ -307,7 +298,7 @@ function App() {
           targetAsset = asset1Info.symbol;
           perpetualAction = `LONG ${asset1Info.symbol}`;
           reasoning = `${asset1Info.symbol} underperforming. Potential value opportunity.`;
-          strategy = `MODERATE SIGNAL: LONG ${asset1Info.symbol} perpetual for mean reversion play. ${asset2Info.symbol} is ahead by ${lastDiff.toFixed(2)}%, presenting an opportunity for ${asset1Info.symbol} to catch up.`;
+          strategy = `MODERATE SIGNAL: LONG ${asset1Info.symbol} perpetual for mean reversion play.`;
           entryPrice = `Long ${asset1Info.symbol} now`;
           confidence = Math.max(longScore, shortScore, 30);
         } else {
@@ -315,23 +306,21 @@ function App() {
           targetAsset = asset2Info.symbol;
           perpetualAction = `LONG ${asset2Info.symbol}`;
           reasoning = `${asset2Info.symbol} underperforming. Potential value opportunity.`;
-          strategy = `MODERATE SIGNAL: LONG ${asset2Info.symbol} perpetual for mean reversion play. ${asset1Info.symbol} is ahead by ${Math.abs(lastDiff).toFixed(2)}%, presenting an opportunity for ${asset2Info.symbol} to catch up.`;
+          strategy = `MODERATE SIGNAL: LONG ${asset2Info.symbol} perpetual for mean reversion play.`;
           entryPrice = `Long ${asset2Info.symbol} now`;
           confidence = Math.max(longScore, shortScore, 30);
         }
       }
       stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% from entry`;
-      takeProfit = `Take profit: ${(Math.abs(lastDiff - mean) * 0.5).toFixed(2)}% gain (conservative)`;
+      takeProfit = `Take profit: ${(Math.abs(lastDiff - mean) * 0.5).toFixed(2)}% gain`;
     }
     
     const volatility = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     const riskLevel = volatility > 2 ? 'HIGH' : volatility > 1 ? 'MEDIUM' : 'LOW';
-    
     const expectedMove = lastDiff > mean ? -(Math.abs(lastDiff - mean) * 0.6) : Math.abs(lastDiff - mean) * 0.6;
     const targetPrice = lastDiff + expectedMove;
     
-    let positionSize;
-    let leverage;
+    let positionSize, leverage;
     if (riskLevel === 'HIGH') {
       positionSize = '1-2% of portfolio';
       leverage = '2-3x leverage maximum';
@@ -424,10 +413,8 @@ function App() {
       for (let i = 0; i < minLength; i++) {
         const currentClose1 = parseFloat(data1[i][4]);
         const currentClose2 = parseFloat(data2[i][4]);
-        
         const timestamp = data1[i][0];
         const date = new Date(timestamp);
-        
         const changeFromStart1 = ((currentClose1 - startPrice1) / startPrice1) * 100;
         const changeFromStart2 = ((currentClose2 - startPrice2) / startPrice2) * 100;
         const diff = changeFromStart2 - changeFromStart1;
@@ -592,284 +579,284 @@ function App() {
         </div>
 
         {algoAnalysis && algoAnalysis.prediction && (
-          <div style={{
-            backgroundColor: '#1f2937',
-            borderLeft: '1px solid #374151',
-            borderRight: '1px solid #374151',
-            padding: '24px'
-          }}>
+          <>
             <div style={{
-              borderRadius: '12px',
-              padding: '24px',
-              background: algoAnalysis.prediction.action === 'LONG' 
-                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 78, 59, 0.3) 100%)'
-                : algoAnalysis.prediction.action === 'SHORT'
-                ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(127, 29, 29, 0.3) 100%)'
-                : 'linear-gradient(135deg, rgba(107, 114, 128, 0.2) 0%, rgba(55, 65, 81, 0.3) 100%)',
-              border: algoAnalysis.prediction.action === 'LONG' 
-                ? '2px solid rgba(16, 185, 129, 0.5)'
-                : algoAnalysis.prediction.action === 'SHORT'
-                ? '2px solid rgba(239, 68, 68, 0.5)'
-                : '2px solid rgba(107, 114, 128, 0.5)',
+              backgroundColor: '#1f2937',
+              borderLeft: '1px solid #374151',
+              borderRight: '1px solid #374151',
+              padding: '24px'
             }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                    <Brain size={40} color={
-                      algoAnalysis.prediction.action === 'LONG' ? '#34d399' : 
-                      algoAnalysis.prediction.action === 'SHORT' ? '#f87171' : '#9ca3af'
-                    } />
-                    <div>
-                      <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'white' }}>
-                        {algoAnalysis.prediction.perpetualAction}
+              <div style={{
+                borderRadius: '12px',
+                padding: '24px',
+                background: algoAnalysis.prediction.action === 'LONG' 
+                  ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 78, 59, 0.3) 100%)'
+                  : algoAnalysis.prediction.action === 'SHORT'
+                  ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(127, 29, 29, 0.3) 100%)'
+                  : 'linear-gradient(135deg, rgba(107, 114, 128, 0.2) 0%, rgba(55, 65, 81, 0.3) 100%)',
+                border: algoAnalysis.prediction.action === 'LONG' 
+                  ? '2px solid rgba(16, 185, 129, 0.5)'
+                  : algoAnalysis.prediction.action === 'SHORT'
+                  ? '2px solid rgba(239, 68, 68, 0.5)'
+                  : '2px solid rgba(107, 114, 128, 0.5)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                      <Brain size={40} color={
+                        algoAnalysis.prediction.action === 'LONG' ? '#34d399' : 
+                        algoAnalysis.prediction.action === 'SHORT' ? '#f87171' : '#9ca3af'
+                      } />
+                      <div>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'white' }}>
+                          {algoAnalysis.prediction.perpetualAction}
+                        </div>
+                        <div style={{ fontSize: '16px', color: '#d1d5db', marginTop: '4px' }}>
+                          AI Confidence: {algoAnalysis.prediction.confidence}%
+                        </div>
                       </div>
-                      <div style={{ fontSize: '16px', color: '#d1d5db', marginTop: '4px' }}>
-                        AI Confidence: {algoAnalysis.prediction.confidence}%
-                      </div>
                     </div>
-                  </div>
-                  
-                  <div style={{ 
-                    marginBottom: '20px',
-                    padding: '16px',
-                    backgroundColor: 'rgba(0,0,0,0.3)',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255,255,255,0.1)'
-                  }}>
-                    <div style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '8px', fontWeight: 'bold' }}>
-                      📊 ANALYSIS
-                    </div>
-                    <p style={{ color: '#e5e7eb', fontSize: '16px', lineHeight: '1.6', marginBottom: '0' }}>
-                      {algoAnalysis.prediction.reasoning}
-                    </p>
-                  </div>
-
-                  <div style={{ 
-                    marginBottom: '20px',
-                    padding: '16px',
-                    backgroundColor: 'rgba(0,0,0,0.4)',
-                    borderRadius: '8px',
-                    border: '2px solid rgba(34, 197, 94, 0.3)'
-                  }}>
-                    <div style={{ fontSize: '14px', color: '#34d399', marginBottom: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '18px' }}>💡</span>
-                      TRADING STRATEGY
-                    </div>
-                    <p style={{ color: '#e5e7eb', fontSize: '16px', lineHeight: '1.7', marginBottom: '16px' }}>
-                      {algoAnalysis.prediction.strategy}
-                    </p>
                     
-                    <div style={{ display: 'grid', gap: '12px' }}>
-                      <div style={{ 
-                        padding: '12px',
-                        backgroundColor: 'rgba(0,0,0,0.3)',
-                        borderRadius: '6px',
-                        borderLeft: '3px solid #3b82f6'
-                      }}>
-                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Entry Point</div>
-                        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fff' }}>{algoAnalysis.prediction.entryPrice}</div>
+                    <div style={{ 
+                      marginBottom: '20px',
+                      padding: '16px',
+                      backgroundColor: 'rgba(0,0,0,0.3)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255,255,255,0.1)'
+                    }}>
+                      <div style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '8px', fontWeight: 'bold' }}>
+                        📊 ANALYSIS
                       </div>
-                      
-                      <div style={{ 
-                        padding: '12px',
-                        backgroundColor: 'rgba(0,0,0,0.3)',
-                        borderRadius: '6px',
-                        borderLeft: '3px solid #ef4444'
-                      }}>
-                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Stop Loss</div>
-                        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#f87171' }}>{algoAnalysis.prediction.stopLoss}</div>
-                      </div>
-                      
-                      <div style={{ 
-                        padding: '12px',
-                        backgroundColor: 'rgba(0,0,0,0.3)',
-                        borderRadius: '6px',
-                        borderLeft: '3px solid #22c55e'
-                      }}>
-                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Take Profit</div>
-                        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#34d399' }}>{algoAnalysis.prediction.takeProfit}</div>
-                      </div>
-                      
-                      <div style={{ 
-                        padding: '12px',
-                        backgroundColor: 'rgba(0,0,0,0.3)',
-                        borderRadius: '6px',
-                        borderLeft: '3px solid #f59e0b'
-                      }}>
-                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Position Size</div>
-                        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fbbf24' }}>{algoAnalysis.prediction.positionSize}</div>
-                      </div>
-                      
-                      <div style={{ 
-                        padding: '12px',
-                        backgroundColor: 'rgba(0,0,0,0.3)',
-                        borderRadius: '6px',
-                        borderLeft: '3px solid #8b5cf6'
-                      }}>
-                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Leverage</div>
-                        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#a78bfa' }}>{algoAnalysis.prediction.leverage}</div>
-                      </div>
+                      <p style={{ color: '#e5e7eb', fontSize: '16px', lineHeight: '1.6', marginBottom: '0' }}>
+                        {algoAnalysis.prediction.reasoning}
+                      </p>
                     </div>
-                  </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Current Gap</div>
-                      <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#fff' }}>{algoAnalysis.prediction.currentGap}%</div>
-                    </div>
-                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Target Gap</div>
-                      <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#34d399' }}>{algoAnalysis.prediction.targetGap}%</div>
-                    </div>
-                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Expected Move</div>
-                      <div style={{ fontSize: '22px', fontWeight: 'bold', color: parseFloat(algoAnalysis.prediction.expectedMove) >= 0 ? '#34d399' : '#f87171' }}>
-                        {parseFloat(algoAnalysis.prediction.expectedMove) >= 0 ? '+' : ''}{algoAnalysis.prediction.expectedMove}%
+                    <div style={{ 
+                      marginBottom: '20px',
+                      padding: '16px',
+                      backgroundColor: 'rgba(0,0,0,0.4)',
+                      borderRadius: '8px',
+                      border: '2px solid rgba(34, 197, 94, 0.3)'
+                    }}>
+                      <div style={{ fontSize: '14px', color: '#34d399', marginBottom: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>💡</span>
+                        TRADING STRATEGY
                       </div>
-                    </div>
-                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Risk Level</div>
-                      <div style={{ 
-                        fontSize: '22px', 
-                        fontWeight: 'bold', 
-                        color: algoAnalysis.prediction.riskLevel === 'HIGH' ? '#f87171' : algoAnalysis.prediction.riskLevel === 'MEDIUM' ? '#fbbf24' : '#34d399' 
-                      }}>
-                        {algoAnalysis.prediction.riskLevel}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '8px' }}>Detected Patterns:</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {algoAnalysis.prediction.patterns.map((pattern, idx) => (
-                        <span key={idx} style={{
-                          padding: '6px 14px',
-                          backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                          color: '#6ee7b7',
-                          fontSize: '13px',
-                          fontWeight: 'bold',
-                          borderRadius: '12px',
-                          border: '1px solid rgba(16, 185, 129, 0.3)'
+                      <p style={{ color: '#e5e7eb', fontSize: '16px', lineHeight: '1.7', marginBottom: '16px' }}>
+                        {algoAnalysis.prediction.strategy}
+                      </p>
+                      
+                      <div style={{ display: 'grid', gap: '12px' }}>
+                        <div style={{ 
+                          padding: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          borderRadius: '6px',
+                          borderLeft: '3px solid #3b82f6'
                         }}>
-                          {pattern.replace(/_/g, ' ')}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '12px', fontSize: '14px', color: '#9ca3af' }}>
-                    ⏱️ Time Horizon: {algoAnalysis.prediction.timeHorizon}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {algoAnalysis && algoAnalysis.prediction && (
-          <div style={{
-            backgroundColor: '#1f2937',
-            borderLeft: '1px solid #374151',
-            borderRight: '1px solid #374151',
-            padding: '24px'
-          }}>
-            <div style={{
-              borderRadius: '8px',
-              padding: '16px',
-              border: parseFloat(algoAnalysis.prediction.confidence) >= 40 
-                ? '2px solid rgba(16, 185, 129, 0.5)' 
-                : parseFloat(algoAnalysis.prediction.confidence) >= 20
-                ? '2px solid rgba(251, 191, 36, 0.5)'
-                : '2px solid rgba(239, 68, 68, 0.5)',
-              backgroundColor: parseFloat(algoAnalysis.prediction.confidence) >= 40
-                ? 'rgba(6, 78, 59, 0.3)'
-                : parseFloat(algoAnalysis.prediction.confidence) >= 20
-                ? 'rgba(120, 53, 15, 0.3)'
-                : 'rgba(127, 29, 29, 0.3)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {parseFloat(algoAnalysis.prediction.confidence) >= 40 ? (
-                    <CheckCircle size={32} color="#34d399" />
-                  ) : parseFloat(algoAnalysis.prediction.confidence) >= 20 ? (
-                    <ArrowUpCircle size={32} color="#fbbf24" />
-                  ) : (
-                    <ArrowUpCircle size={32} color="#f87171" />
-                  )}
-                  <div>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>
-                      {parseFloat(algoAnalysis.prediction.confidence) >= 40 
-                        ? `✅ GOOD SIGNAL: ${algoAnalysis.prediction.perpetualAction}`
-                        : parseFloat(algoAnalysis.prediction.confidence) >= 20
-                        ? `⚠️ WEAK SIGNAL: ${algoAnalysis.prediction.perpetualAction}`
-                        : `❌ VERY WEAK: ${algoAnalysis.prediction.perpetualAction}`
-                      }
-                    </div>
-                    <div style={{ fontSize: '13px', color: '#d1d5db', marginTop: '4px' }}>
-                      {parseFloat(algoAnalysis.prediction.confidence) >= 40 
-                        ? `Confidence: ${algoAnalysis.prediction.confidence}% - Trade recommended`
-                        : parseFloat(algoAnalysis.prediction.confidence) >= 20
-                        ? `Confidence: ${algoAnalysis.prediction.confidence}% - Small position only or skip`
-                        : `Confidence: ${algoAnalysis.prediction.confidence}% - NOT RECOMMENDED, wait for better setup`
-                      }
-                    </div>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  {backtestResults && (
-                    <>
-                      <div style={{ 
-                        fontSize: '24px', 
-                        fontWeight: 'bold', 
-                        color: parseFloat(backtestResults.winRate) >= 60 ? '#34d399' : parseFloat(backtestResults.winRate) >= 50 ? '#fbbf24' : '#f87171'
-                      }}>
-                        {backtestResults.winRate}%
+                          <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Entry Point</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fff' }}>{algoAnalysis.prediction.entryPrice}</div>
+                        </div>
+                        
+                        <div style={{ 
+                          padding: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          borderRadius: '6px',
+                          borderLeft: '3px solid #ef4444'
+                        }}>
+                          <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Stop Loss</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#f87171' }}>{algoAnalysis.prediction.stopLoss}</div>
+                        </div>
+                        
+                        <div style={{ 
+                          padding: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          borderRadius: '6px',
+                          borderLeft: '3px solid #22c55e'
+                        }}>
+                          <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Take Profit</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#34d399' }}>{algoAnalysis.prediction.takeProfit}</div>
+                        </div>
+                        
+                        <div style={{ 
+                          padding: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          borderRadius: '6px',
+                          borderLeft: '3px solid #f59e0b'
+                        }}>
+                          <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Position Size</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fbbf24' }}>{algoAnalysis.prediction.positionSize}</div>
+                        </div>
+                        
+                        <div style={{ 
+                          padding: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          borderRadius: '6px',
+                          borderLeft: '3px solid #8b5cf6'
+                        }}>
+                          <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Leverage</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#a78bfa' }}>{algoAnalysis.prediction.leverage}</div>
+                        </div>
                       </div>
-                      <div style={{ fontSize: '12px', color: '#9ca3af' }}>Win Rate</div>
-                    </>
-                  )}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                      <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Current Gap</div>
+                        <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#fff' }}>{algoAnalysis.prediction.currentGap}%</div>
+                      </div>
+                      <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Target Gap</div>
+                        <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#34d399' }}>{algoAnalysis.prediction.targetGap}%</div>
+                      </div>
+                      <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Expected Move</div>
+                        <div style={{ fontSize: '22px', fontWeight: 'bold', color: parseFloat(algoAnalysis.prediction.expectedMove) >= 0 ? '#34d399' : '#f87171' }}>
+                          {parseFloat(algoAnalysis.prediction.expectedMove) >= 0 ? '+' : ''}{algoAnalysis.prediction.expectedMove}%
+                        </div>
+                      </div>
+                      <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Risk Level</div>
+                        <div style={{ 
+                          fontSize: '22px', 
+                          fontWeight: 'bold', 
+                          color: algoAnalysis.prediction.riskLevel === 'HIGH' ? '#f87171' : algoAnalysis.prediction.riskLevel === 'MEDIUM' ? '#fbbf24' : '#34d399' 
+                        }}>
+                          {algoAnalysis.prediction.riskLevel}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '8px' }}>Detected Patterns:</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {algoAnalysis.prediction.patterns.map((pattern, idx) => (
+                          <span key={idx} style={{
+                            padding: '6px 14px',
+                            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                            color: '#6ee7b7',
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            borderRadius: '12px',
+                            border: '1px solid rgba(16, 185, 129, 0.3)'
+                          }}>
+                            {pattern.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '12px', fontSize: '14px', color: '#9ca3af' }}>
+                      ⏱️ Time Horizon: {algoAnalysis.prediction.timeHorizon}
+                    </div>
+                  </div>
                 </div>
               </div>
-              
-              {parseFloat(algoAnalysis.prediction.confidence) < 40 && (
-                <div style={{ 
-                  marginTop: '12px', 
-                  padding: '12px', 
-                  backgroundColor: 'rgba(0,0,0,0.3)', 
-                  borderRadius: '6px',
-                  borderLeft: parseFloat(algoAnalysis.prediction.confidence) < 20 ? '3px solid #ef4444' : '3px solid #f59e0b'
-                }}>
-                  <div style={{ fontSize: '13px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '4px' }}>
-                    ⚠️ TRADING WARNING
-                  </div>
-                  <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
-                    {parseFloat(algoAnalysis.prediction.confidence) < 20 
-                      ? `This signal has very low confidence (${algoAnalysis.prediction.confidence}%). High risk of loss. Recommended action: SKIP this trade and wait for confidence above 40%.`
-                      : `This signal has low confidence (${algoAnalysis.prediction.confidence}%). Only consider if you have high risk tolerance. Use 1-2% position size maximum.`
-                    }
-                  </div>
-                </div>
-              )}
-              
-              {backtestResults && parseFloat(backtestResults.winRate) < 55 && (
-                <div style={{ 
-                  marginTop: '12px', 
-                  padding: '12px', 
-                  backgroundColor: 'rgba(0,0,0,0.3)', 
-                  borderRadius: '6px',
-                  borderLeft: '3px solid #ef4444'
-                }}>
-                  <div style={{ fontSize: '13px', color: '#f87171', fontWeight: 'bold', marginBottom: '4px' }}>
-                    📉 POOR BACKTEST PERFORMANCE
-                  </div>
-                  <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
-                    Historical win rate of {backtestResults.winRate}% is below profitable threshold (need 55%+). This strategy has lost money in backtesting. Profit Factor: {backtestResults.profitFactor} (need 1.5+).
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
+
+            <div style={{
+              backgroundColor: '#1f2937',
+              borderLeft: '1px solid #374151',
+              borderRight: '1px solid #374151',
+              padding: '24px'
+            }}>
+              <div style={{
+                borderRadius: '8px',
+                padding: '16px',
+                border: parseFloat(algoAnalysis.prediction.confidence) >= 40 
+                  ? '2px solid rgba(16, 185, 129, 0.5)' 
+                  : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                  ? '2px solid rgba(251, 191, 36, 0.5)'
+                  : '2px solid rgba(239, 68, 68, 0.5)',
+                backgroundColor: parseFloat(algoAnalysis.prediction.confidence) >= 40
+                  ? 'rgba(6, 78, 59, 0.3)'
+                  : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                  ? 'rgba(120, 53, 15, 0.3)'
+                  : 'rgba(127, 29, 29, 0.3)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {parseFloat(algoAnalysis.prediction.confidence) >= 40 ? (
+                      <CheckCircle size={32} color="#34d399" />
+                    ) : parseFloat(algoAnalysis.prediction.confidence) >= 20 ? (
+                      <ArrowUpCircle size={32} color="#fbbf24" />
+                    ) : (
+                      <ArrowUpCircle size={32} color="#f87171" />
+                    )}
+                    <div>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>
+                        {parseFloat(algoAnalysis.prediction.confidence) >= 40 
+                          ? `✅ GOOD SIGNAL: ${algoAnalysis.prediction.perpetualAction}`
+                          : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                          ? `⚠️ WEAK SIGNAL: ${algoAnalysis.prediction.perpetualAction}`
+                          : `❌ VERY WEAK: ${algoAnalysis.prediction.perpetualAction}`
+                        }
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#d1d5db', marginTop: '4px' }}>
+                        {parseFloat(algoAnalysis.prediction.confidence) >= 40 
+                          ? `Confidence: ${algoAnalysis.prediction.confidence}% - Trade recommended`
+                          : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                          ? `Confidence: ${algoAnalysis.prediction.confidence}% - Small position only or skip`
+                          : `Confidence: ${algoAnalysis.prediction.confidence}% - NOT RECOMMENDED, wait for better setup`
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    {backtestResults && (
+                      <>
+                        <div style={{ 
+                          fontSize: '24px', 
+                          fontWeight: 'bold', 
+                          color: parseFloat(backtestResults.winRate) >= 60 ? '#34d399' : parseFloat(backtestResults.winRate) >= 50 ? '#fbbf24' : '#f87171'
+                        }}>
+                          {backtestResults.winRate}%
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#9ca3af' }}>Win Rate</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                {parseFloat(algoAnalysis.prediction.confidence) < 40 && (
+                  <div style={{ 
+                    marginTop: '12px', 
+                    padding: '12px', 
+                    backgroundColor: 'rgba(0,0,0,0.3)', 
+                    borderRadius: '6px',
+                    borderLeft: parseFloat(algoAnalysis.prediction.confidence) < 20 ? '3px solid #ef4444' : '3px solid #f59e0b'
+                  }}>
+                    <div style={{ fontSize: '13px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '4px' }}>
+                      ⚠️ TRADING WARNING
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
+                      {parseFloat(algoAnalysis.prediction.confidence) < 20 
+                        ? `This signal has very low confidence (${algoAnalysis.prediction.confidence}%). High risk of loss. Recommended action: SKIP this trade and wait for confidence above 40%.`
+                        : `This signal has low confidence (${algoAnalysis.prediction.confidence}%). Only consider if you have high risk tolerance. Use 1-2% position size maximum.`
+                      }
+                    </div>
+                  </div>
+                )}
+                
+                {backtestResults && parseFloat(backtestResults.winRate) < 55 && (
+                  <div style={{ 
+                    marginTop: '12px', 
+                    padding: '12px', 
+                    backgroundColor: 'rgba(0,0,0,0.3)', 
+                    borderRadius: '6px',
+                    borderLeft: '3px solid #ef4444'
+                  }}>
+                    <div style={{ fontSize: '13px', color: '#f87171', fontWeight: 'bold', marginBottom: '4px' }}>
+                      📉 POOR BACKTEST PERFORMANCE
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
+                      Historical win rate of {backtestResults.winRate}% is below profitable threshold (need 55%+). This strategy has lost money in backtesting. Profit Factor: {backtestResults.profitFactor} (need 1.5+).
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
         )}
 
         {backtestResults && (
@@ -1061,3 +1048,139 @@ function App() {
             )}
             <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg: {avgAsset2}%</div>
           </div>
+          
+          <div style={{
+            background: 'linear-gradient(to bottom right, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1))',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold' }}>PRICE GAP</span>
+              {currentStats.diff >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: currentStats.diff >= 0 ? '#34d399' : '#f87171' }}>
+              {currentStats.diff >= 0 ? '+' : ''}{currentStats.diff}%
+            </div>
+            <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
+              {asset2Info.symbol} {currentStats.asset2Daily >= 0 ? '+' : ''}{currentStats.asset2Daily}% vs {asset1Info.symbol} {currentStats.asset1Daily >= 0 ? '+' : ''}{currentStats.asset1Daily}%
+            </div>
+            <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg Gap: {avgDiff}%</div>
+          </div>
+        </div>
+
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          padding: '12px 24px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginRight: '8px' }}>Timeframe:</span>
+            {['1D', '7D', '1M', '3M', '6M', '1Y', 'YTD'].map((tf) => (
+              <button key={tf} onClick={() => setTimeframe(tf)} style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontWeight: '500',
+                fontSize: '14px',
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor: timeframe === tf ? '#2563eb' : '#374151',
+                color: timeframe === tf ? 'white' : '#d1d5db',
+                boxShadow: timeframe === tf ? '0 4px 6px rgba(0,0,0,0.1)' : 'none'
+              }}>
+                {tf}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          padding: '24px'
+        }}>
+          <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Asset Performance Comparison
+          </h2>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '22px', color: '#d1d5db', marginBottom: '8px' }}>Loading chart...</div>
+                <div style={{ fontSize: '16px', color: '#6b7280' }}>Please wait</div>
+              </div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={500}>
+              <LineChart data={data}>
+                <defs>
+                  <linearGradient id="asset1Gradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={asset1Info.color} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={asset1Info.color} stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="asset2Gradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={asset2Info.color} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={asset2Info.color} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="date" tick={{ fontSize: 13, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
+                <YAxis tick={{ fontSize: 13, fill: '#9ca3af' }} label={{ value: '% Change', angle: -90, position: 'insideLeft', fill: '#9ca3af', style: { fontSize: '14px' } }} stroke="#4b5563" />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '14px' }} iconType="line" />
+                <Line type="monotone" dataKey="asset1Daily" stroke={asset1Info.color} strokeWidth={3} name={`${asset1Info.name}`} dot={false} fill="url(#asset1Gradient)" />
+                <Line type="monotone" dataKey="asset2Daily" stroke={asset2Info.color} strokeWidth={3} name={`${asset2Info.name}`} dot={false} fill="url(#asset2Gradient)" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          borderBottom: '1px solid #374151',
+          borderRadius: '0 0 12px 12px',
+          padding: '24px'
+        }}>
+          <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Price Gap Analysis
+          </h2>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '22px', color: '#d1d5db', marginBottom: '8px' }}>Loading chart...</div>
+                <div style={{ fontSize: '16px', color: '#6b7280' }}>Please wait</div>
+              </div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={500}>
+              <LineChart data={data}>
+                <defs>
+                  <linearGradient id="gapGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="date" tick={{ fontSize: 13, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
+                <YAxis tick={{ fontSize: 13, fill: '#9ca3af' }} label={{ value: 'Gap (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af', style: { fontSize: '14px' } }} stroke="#4b5563" />
+                <Tooltip content={<GapTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '14px' }} iconType="line" />
+                <Line type="monotone" dataKey="diff" stroke="#10b981" strokeWidth={3} name={`Gap (${asset2Info.symbol} - ${asset1Info.symbol})`} dot={false} fill="url(#gapGradient)" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+          <div style={{ marginTop: '16px', padding: '14px', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <p style={{ color: '#9ca3af', fontSize: '15px' }}>
+              <span style={{ color: '#d1d5db', fontWeight: '500' }}>🤖 AI Strategy:</span> Machine learning pattern recognition with mean reversion backtesting
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;
