@@ -270,20 +270,21 @@ function App() {
       meetsGap
     };
     
-    // Only trade if ALL criteria met AND expected value is positive
-    if (!meetsWinRate || !meetsProfitFactor || !meetsGap || !isProfitable) {
+    // Trade if ANY ONE criteria is met (OR logic instead of AND)
+    const meetsAnyCriteria = meetsWinRate || meetsProfitFactor || meetsGap;
+    
+    if (!meetsAnyCriteria) {
       action = 'SKIP';
       targetAsset = 'NONE';
       perpetualAction = 'NO TRADE';
       
       let reasons = [];
-      if (!isProfitable) reasons.push(`Expected value is NEGATIVE (${expectedValue.toFixed(3)}% per trade after fees)`);
       if (!meetsWinRate) reasons.push(`Win rate ${backtestResults.winRate}% < ${minWinRate}% required`);
       if (!meetsProfitFactor) reasons.push(`Profit factor ${profitFactor.toFixed(2)} < ${minProfitFactor} required`);
       if (!meetsGap) reasons.push(`Gap ${Math.abs(lastDiff).toFixed(2)}% < ${minGap}% required`);
       
-      reasoning = reasons.join('. ');
-      strategy = `⚠️ SKIP THIS TRADE - Manual thresholds not met. ${reasoning}. The AI has calculated that this setup doesn't meet your criteria. Wait for better conditions.`;
+      reasoning = `No thresholds met: ${reasons.join(', ')}`;
+      strategy = `⚠️ SKIP THIS TRADE - None of the manual thresholds are met. ${reasoning}. Wait for better conditions.`;
       entryPrice = 'No entry - criteria not met';
       stopLoss = 'N/A';
       takeProfit = 'N/A';
@@ -504,11 +505,15 @@ function App() {
       const chartData = [];
       const minLength = Math.min(data1.length, data2.length);
       
+      // Get the first and current prices for the selected timeframe
+      const firstPrice1 = parseFloat(data1[0][4]);
+      const firstPrice2 = parseFloat(data2[0][4]);
       const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
       const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
       
-      const prevPrice1 = data1.length > 1 ? parseFloat(data1[data1.length - 2][4]) : parseFloat(data1[0][4]);
-      const prevPrice2 = data2.length > 1 ? parseFloat(data2[data2.length - 2][4]) : parseFloat(data2[0][4]);
+      // Calculate previous price (the starting price of the timeframe)
+      const prevPrice1 = firstPrice1;
+      const prevPrice2 = firstPrice2;
       
       setPriceInfo({
         asset1: {
@@ -1056,7 +1061,7 @@ function App() {
                   ⚠️ WHY NO SIGNAL?
                 </div>
                 <div style={{ fontSize: '14px', color: '#e5e7eb', lineHeight: '1.6' }}>
-                  {algoAnalysis?.prediction?.reasoning || `Analyzing... Current gap: ${data.length > 0 ? data[data.length - 1].diff.toFixed(2) : '0.00'}%`}
+                  {algoAnalysis?.prediction?.reasoning || `None of the thresholds are met. Current gap: ${data.length > 0 ? data[data.length - 1].diff.toFixed(2) : '0.00'}%`}
                 </div>
               </div>
 
@@ -1066,34 +1071,34 @@ function App() {
                 borderRadius: '8px'
               }}>
                 <div style={{ fontSize: '13px', color: '#9ca3af', fontWeight: 'bold', marginBottom: '12px' }}>
-                  📊 CURRENT METRICS vs REQUIREMENTS:
+                  📊 CURRENT METRICS vs REQUIREMENTS (Need ANY 1):
                 </div>
                 <div style={{ display: 'grid', gap: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                     <span style={{ color: '#d1d5db' }}>Win Rate:</span>
                     <span style={{ 
-                      color: parseFloat(backtestResults.winRate) >= 65 ? '#34d399' : '#f87171',
+                      color: parseFloat(backtestResults.winRate) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minWinRate || 65) ? '#34d399' : '#f87171',
                       fontWeight: 'bold'
                     }}>
-                      {backtestResults.winRate}% {parseFloat(backtestResults.winRate) >= 65 ? '✅' : `❌ (need 65%+)`}
+                      {backtestResults.winRate}% {parseFloat(backtestResults.winRate) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minWinRate || 65) ? '✅' : `❌ (need ${algoAnalysis?.prediction?.autoThresholds?.minWinRate || 65}%+)`}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                     <span style={{ color: '#d1d5db' }}>Profit Factor:</span>
                     <span style={{ 
-                      color: parseFloat(backtestResults.profitFactor) >= 1.5 ? '#34d399' : '#f87171',
+                      color: parseFloat(backtestResults.profitFactor) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minProfitFactor || 1.5) ? '#34d399' : '#f87171',
                       fontWeight: 'bold'
                     }}>
-                      {backtestResults.profitFactor} {parseFloat(backtestResults.profitFactor) >= 1.5 ? '✅' : `❌ (need 1.5+)`}
+                      {backtestResults.profitFactor} {parseFloat(backtestResults.profitFactor) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minProfitFactor || 1.5) ? '✅' : `❌ (need ${algoAnalysis?.prediction?.autoThresholds?.minProfitFactor || 1.5}+)`}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                     <span style={{ color: '#d1d5db' }}>Current Gap:</span>
                     <span style={{ 
-                      color: data.length > 0 && Math.abs(data[data.length - 1].diff) >= 1.0 ? '#34d399' : '#f87171',
+                      color: data.length > 0 && Math.abs(data[data.length - 1].diff) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0) ? '#34d399' : '#f87171',
                       fontWeight: 'bold'
                     }}>
-                      {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}% {data.length > 0 && Math.abs(data[data.length - 1].diff) >= 1.0 ? '✅' : `❌ (need 1.0%+)`}
+                      {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}% {data.length > 0 && Math.abs(data[data.length - 1].diff) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0) ? '✅' : `❌ (need ${algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0}%+)`}
                     </span>
                   </div>
                 </div>
@@ -1107,7 +1112,7 @@ function App() {
                 borderLeft: '3px solid #3b82f6'
               }}>
                 <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
-                  💡 <strong>NOTE:</strong> These thresholds are ESTIMATED and should be adjusted based on YOUR live trading results. Track every trade for 2-4 weeks, then optimize thresholds for maximum profitability.
+                  💡 <strong>NOTE:</strong> A trade signal will be generated if ANY ONE of these thresholds is met. Adjust your manual thresholds above to control when trades are recommended.
                 </div>
               </div>
             </div>
@@ -1275,7 +1280,7 @@ function App() {
               borderLeft: '3px solid #3b82f6'
             }}>
               <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
-                💡 <strong>TIP:</strong> Start conservative (65% win rate, 1.5 profit factor, 1.0% gap) and adjust based on your live trading results. Lower thresholds = more trades but lower quality. Higher thresholds = fewer trades but better quality.
+                💡 <strong>TIP:</strong> Trade signal will be generated if ANY ONE threshold is met (not all required). Start conservative (65% win rate, 1.5 profit factor, 1.0% gap) and adjust based on your live trading results.
               </div>
             </div>
           </div>
@@ -1378,7 +1383,7 @@ function App() {
             {priceInfo.asset1 && (
               <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
                 <div>Current: ${priceInfo.asset1.current.toLocaleString()}</div>
-                <div>Previous: ${priceInfo.asset1.previous.toLocaleString()}</div>
+                <div>Start of {timeframe}: ${priceInfo.asset1.previous.toLocaleString()}</div>
               </div>
             )}
             <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg: {avgAsset1}%</div>
@@ -1400,7 +1405,7 @@ function App() {
             {priceInfo.asset2 && (
               <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
                 <div>Current: ${priceInfo.asset2.current.toLocaleString()}</div>
-                <div>Previous: ${priceInfo.asset2.previous.toLocaleString()}</div>
+                <div>Start of {timeframe}: ${priceInfo.asset2.previous.toLocaleString()}</div>
               </div>
             )}
             <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg: {avgAsset2}%</div>
