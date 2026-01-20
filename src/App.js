@@ -35,7 +35,6 @@ function App() {
   const [asset2, setAsset2] = useState('ETHUSDT');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [tradingSignal, setTradingSignal] = useState(null);
   const [priceInfo, setPriceInfo] = useState({ asset1: null, asset2: null });
   const [algoAnalysis, setAlgoAnalysis] = useState(null);
   const [backtestResults, setBacktestResults] = useState(null);
@@ -370,37 +369,8 @@ function App() {
   };
 
   const analyzeTradingSignal = (chartData, asset1Info, asset2Info) => {
-    if (chartData.length < 2) return null;
-    
-    const lastDiff = chartData[chartData.length - 1].diff;
-    
-    let signal = {
-      action: '',
-      asset: '',
-      reason: '',
-      strength: 0,
-      diff: lastDiff
-    };
-    
-    // Simplified display showing LONG/SHORT perpetual action
-    if (lastDiff > 0.5) {
-      signal.action = 'LONG';
-      signal.asset = asset2Info.symbol;
-      signal.reason = `LONG ${asset2Info.symbol} / SHORT ${asset1Info.symbol}`;
-      signal.strength = Math.min(Math.abs(lastDiff) / 2 * 100, 100);
-    } else if (lastDiff < -0.5) {
-      signal.action = 'LONG';
-      signal.asset = asset1Info.symbol;
-      signal.reason = `LONG ${asset1Info.symbol} / SHORT ${asset2Info.symbol}`;
-      signal.strength = Math.min(Math.abs(lastDiff) / 2 * 100, 100);
-    } else {
-      signal.action = 'NEUTRAL';
-      signal.asset = 'BOTH';
-      signal.reason = `Gap too small: ${Math.abs(lastDiff).toFixed(2)}% - Wait for clearer setup`;
-      signal.strength = 0;
-    }
-    
-    return signal;
+    // This function is no longer needed - removed to clean up code
+    return null;
   };
 
   const loadData = async () => {
@@ -484,7 +454,6 @@ function App() {
       }
 
       setData(chartData);
-      setTradingSignal(analyzeTradingSignal(chartData, asset1Info, asset2Info));
       
       const patterns = detectPatterns(chartData);
       const backtest = runBacktest(chartData);
