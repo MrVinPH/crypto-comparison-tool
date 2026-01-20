@@ -102,24 +102,25 @@ function App() {
       }
 
       const chartData = [];
-      const minLength = Math.min(data1.length, data2.length);
-      
       const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
-      const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
-      
-      setPriceInfo({
-        asset1: {
-          current: currentPrice1,
-          previous: prevPrice1,
-          change: ((currentPrice1 - prevPrice1) / prevPrice1) * 100
-        },
-        asset2: {
-          current: currentPrice2,
-          previous: prevPrice2,
-          change: ((currentPrice2 - prevPrice2) / prevPrice2) * 100
-        }
-      });
-      
+const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
+
+// Calculate previous prices (second to last candle, or use first candle if only one exists)
+const prevPrice1 = data1.length > 1 ? parseFloat(data1[data1.length - 2][4]) : parseFloat(data1[0][4]);
+const prevPrice2 = data2.length > 1 ? parseFloat(data2[data2.length - 2][4]) : parseFloat(data2[0][4]);
+
+setPriceInfo({
+  asset1: {
+    current: currentPrice1,
+    previous: prevPrice1,
+    change: ((currentPrice1 - prevPrice1) / prevPrice1) * 100
+  },
+  asset2: {
+    current: currentPrice2,
+    previous: prevPrice2,
+    change: ((currentPrice2 - prevPrice2) / prevPrice2) * 100
+  }
+});
       // Get starting prices (first candle in timeframe)
       const startPrice1 = parseFloat(data1[0][4]);
       const startPrice2 = parseFloat(data2[0][4]);
