@@ -15,9 +15,22 @@ const CRYPTO_OPTIONS = [
   { id: 'LINKUSDT', symbol: 'LINK', name: 'Chainlink', color: '#2a5ada' },
 ];
 
+const INTERVAL_OPTIONS = [
+  { value: '1m', label: '1 Minute' },
+  { value: '5m', label: '5 Minutes' },
+  { value: '15m', label: '15 Minutes' },
+  { value: '30m', label: '30 Minutes' },
+  { value: '1h', label: '1 Hour' },
+  { value: '2h', label: '2 Hours' },
+  { value: '4h', label: '4 Hours' },
+  { value: '1d', label: '1 Day' },
+  { value: '1w', label: '1 Week' },
+];
+
 function App() {
   const [data, setData] = useState([]);
   const [timeframe, setTimeframe] = useState('7D');
+  const [interval, setInterval] = useState('1d');
   const [asset1, setAsset1] = useState('BTCUSDT');
   const [asset2, setAsset2] = useState('ETHUSDT');
   const [loading, setLoading] = useState(false);
@@ -27,15 +40,21 @@ function App() {
 
   const getAssetInfo = (assetId) => CRYPTO_OPTIONS.find(a => a.id === assetId) || CRYPTO_OPTIONS[0];
 
-  const getTimeframeDetails = (tf) => {
+  const getTimeframeDetails = (tf, selectedInterval) => {
     switch(tf) {
-      case '1D': return { interval: '1h', limit: 24 };
-      case '7D': return { interval: '1d', limit: 7 };
-      case '1M': return { interval: '1d', limit: 30 };
-      case '3M': return { interval: '1d', limit: 90 };
-      case '6M': return { interval: '1d', limit: 180 };
-      case '1Y': return { interval: '1d', limit: 365 };
-      default: return { interval: '1d', limit: 7 };
+      case '1D': return { interval: selectedInterval, limit: selectedInterval === '1h' ? 24 : selectedInterval === '2h' ? 12 : selectedInterval === '4h' ? 6 : selectedInterval === '15m' ? 96 : selectedInterval === '30m' ? 48 : selectedInterval === '1m' ? 1440 : selectedInterval === '5m' ? 288 : 24 };
+      case '7D': return { interval: selectedInterval, limit: selectedInterval === '1h' ? 168 : selectedInterval === '2h' ? 84 : selectedInterval === '4h' ? 42 : selectedInterval === '1d' ? 7 : 168 };
+      case '1M': return { interval: selectedInterval, limit: selectedInterval === '1d' ? 30 : selectedInterval === '1h' ? 720 : selectedInterval === '4h' ? 180 : 30 };
+      case '3M': return { interval: selectedInterval === '1d' || selectedInterval === '1w' ? selectedInterval : '1d', limit: selectedInterval === '1w' ? 12 : 90 };
+      case '6M': return { interval: selectedInterval === '1d' || selectedInterval === '1w' ? selectedInterval : '1d', limit: selectedInterval === '1w' ? 26 : 180 };
+      case '1Y': return { interval: selectedInterval === '1d' || selectedInterval === '1w' ? selectedInterval : '1d', limit: selectedInterval === '1w' ? 52 : 365 };
+      case 'YTD': {
+        const now = new Date();
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        const daysSinceYearStart = Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24));
+        return { interval: selectedInterval === '1d' || selectedInterval === '1w' ? selectedInterval : '1d', limit: selectedInterval === '1w' ? Math.ceil(daysSinceYearStart / 7) : daysSinceYearStart };
+      }
+      default: return { interval: selectedInterval, limit: 7 };
     }
   };
 
@@ -52,20 +71,21 @@ function App() {
       diff: lastDiff
     };
     
-    if (lastDiff > 2) {
+    // Changed threshold from 2% to 0.5%
+    if (lastDiff > 0.5) {
       signal.action = 'LONG';
       signal.asset = asset2Info.symbol;
       signal.reason = `${asset2Info.symbol} is outperforming ${asset1Info.symbol} by ${lastDiff.toFixed(2)}%`;
-      signal.strength = Math.min(Math.abs(lastDiff) / 5 * 100, 100);
-    } else if (lastDiff < -2) {
+      signal.strength = Math.min(Math.abs(lastDiff) / 2 * 100, 100);
+    } else if (lastDiff < -0.5) {
       signal.action = 'LONG';
       signal.asset = asset1Info.symbol;
       signal.reason = `${asset1Info.symbol} is outperforming ${asset2Info.symbol} by ${Math.abs(lastDiff).toFixed(2)}%`;
-      signal.strength = Math.min(Math.abs(lastDiff) / 5 * 100, 100);
+      signal.strength = Math.min(Math.abs(lastDiff) / 2 * 100, 100);
     } else {
       signal.action = 'NEUTRAL';
       signal.asset = 'BOTH';
-      signal.reason = `Small gap between ${asset1Info.symbol} and ${asset2Info.symbol}`;
+      signal.reason = `Small gap between ${asset1Info.symbol} and ${asset2Info.symbol} (${Math.abs(lastDiff).toFixed(2)}%)`;
       signal.strength = 0;
     }
     
@@ -80,10 +100,10 @@ function App() {
     const asset2Info = getAssetInfo(asset2);
 
     try {
-      const { interval, limit } = getTimeframeDetails(timeframe);
+      const { interval: fetchInterval, limit } = getTimeframeDetails(timeframe, interval);
       
-      const url1 = `https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=${interval}&limit=${limit}`;
-      const url2 = `https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=${interval}&limit=${limit}`;
+      const url1 = `https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=${fetchInterval}&limit=${limit}`;
+      const url2 = `https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=${fetchInterval}&limit=${limit}`;
       
       const [response1, response2] = await Promise.all([
         fetch(url1),
@@ -123,6 +143,7 @@ function App() {
         }
       });
       
+      // Get starting prices (first candle in timeframe) - this is the baseline
       const startPrice1 = parseFloat(data1[0][4]);
       const startPrice2 = parseFloat(data2[0][4]);
 
@@ -133,21 +154,22 @@ function App() {
         const timestamp = data1[i][0];
         const date = new Date(timestamp);
         
-        const dailyChange1 = ((currentClose1 - startPrice1) / startPrice1) * 100;
-        const dailyChange2 = ((currentClose2 - startPrice2) / startPrice2) * 100;
-        const diff = dailyChange2 - dailyChange1;
+        // Calculate % change from START of timeframe (not previous candle)
+        const changeFromStart1 = ((currentClose1 - startPrice1) / startPrice1) * 100;
+        const changeFromStart2 = ((currentClose2 - startPrice2) / startPrice2) * 100;
+        const diff = changeFromStart2 - changeFromStart1;
         
         const dateFormat = limit > 90 
           ? { month: 'short', day: 'numeric' }
-          : interval === '1h'
-          ? { month: 'short', day: 'numeric', hour: 'numeric' }
+          : fetchInterval.includes('m') || fetchInterval.includes('h')
+          ? { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' }
           : { month: 'short', day: 'numeric' };
         
         chartData.push({
           date: date.toLocaleDateString('en-US', dateFormat),
           timestamp: timestamp,
-          asset1Daily: parseFloat(dailyChange1.toFixed(2)),
-          asset2Daily: parseFloat(dailyChange2.toFixed(2)),
+          asset1Daily: parseFloat(changeFromStart1.toFixed(2)),
+          asset2Daily: parseFloat(changeFromStart2.toFixed(2)),
           diff: parseFloat(diff.toFixed(2))
         });
       }
@@ -164,7 +186,7 @@ function App() {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeframe, asset1, asset2]);
+  }, [timeframe, interval, asset1, asset2]);
   
   const asset1Info = getAssetInfo(asset1);
   const asset2Info = getAssetInfo(asset2);
@@ -191,10 +213,29 @@ function App() {
               <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: asset2Info.color }}></div>
               <span style={{ fontSize: '14px', color: '#555' }}>{asset2Info.symbol}: {payload[1].value}%</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981' }}></div>
-              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>Gap: {payload[2].value}%</span>
-            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const GapTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{
+          backgroundColor: 'white',
+          padding: '12px',
+          border: '1px solid #ccc',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+        }}>
+          <p style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>
+            {payload[0].payload.date}
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981' }}></div>
+            <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>Gap: {payload[0].value}%</span>
           </div>
         </div>
       );
@@ -214,7 +255,7 @@ function App() {
       background: 'linear-gradient(to bottom right, #1f2937, #111827, #1f2937)',
       padding: '16px'
     }}>
-      <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         <div style={{
           backgroundColor: '#1f2937',
           borderRadius: '12px 12px 0 0',
@@ -228,7 +269,7 @@ function App() {
         }}>
           <div>
             <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', marginBottom: '4px' }}>
-              Crypto Daily % Change Comparison
+              Crypto % Change Comparison
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <p style={{ fontSize: '14px', color: '#9ca3af' }}>Live data from Binance API</p>
@@ -290,7 +331,7 @@ function App() {
               <p style={{ color: '#fecaca', fontSize: '14px' }}>{error}</p>
             </div>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             <div>
               <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
                 Asset 1
@@ -326,6 +367,25 @@ function App() {
               }}>
                 {CRYPTO_OPTIONS.map(crypto => (
                   <option key={crypto.id} value={crypto.id}>{crypto.symbol} - {crypto.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                Interval
+              </label>
+              <select value={interval} onChange={(e) => setInterval(e.target.value)} style={{
+                width: '100%',
+                padding: '8px 16px',
+                backgroundColor: '#374151',
+                color: 'white',
+                border: '1px solid #4b5563',
+                borderRadius: '8px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}>
+                {INTERVAL_OPTIONS.map(int => (
+                  <option key={int.value} value={int.value}>{int.label}</option>
                 ))}
               </select>
             </div>
@@ -384,7 +444,7 @@ function App() {
             padding: '16px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>{asset1Info.symbol} LAST CHANGE</span>
+              <span style={{ color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>{asset1Info.symbol} CHANGE</span>
               {currentStats.asset1Daily >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
             </div>
             <div style={{ fontSize: '28px', fontWeight: 'bold', color: currentStats.asset1Daily >= 0 ? '#34d399' : '#f87171' }}>
@@ -406,7 +466,7 @@ function App() {
             padding: '16px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ color: '#c084fc', fontSize: '12px', fontWeight: 'bold' }}>{asset2Info.symbol} LAST CHANGE</span>
+              <span style={{ color: '#c084fc', fontSize: '12px', fontWeight: 'bold' }}>{asset2Info.symbol} CHANGE</span>
               {currentStats.asset2Daily >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
             </div>
             <div style={{ fontSize: '28px', fontWeight: 'bold', color: currentStats.asset2Daily >= 0 ? '#34d399' : '#f87171' }}>
@@ -428,7 +488,7 @@ function App() {
             padding: '16px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold' }}>DAILY GAP</span>
+              <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold' }}>PRICE GAP</span>
               {currentStats.diff >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
             </div>
             <div style={{ fontSize: '28px', fontWeight: 'bold', color: currentStats.diff >= 0 ? '#34d399' : '#f87171' }}>
@@ -449,7 +509,7 @@ function App() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginRight: '8px' }}>Timeframe:</span>
-            {['1D', '7D', '1M', '3M', '6M', '1Y'].map((tf) => (
+            {['1D', '7D', '1M', '3M', '6M', '1Y', 'YTD'].map((tf) => (
               <button key={tf} onClick={() => setTimeframe(tf)} style={{
                 padding: '8px 16px',
                 borderRadius: '8px',
@@ -473,6 +533,9 @@ function App() {
           borderRight: '1px solid #374151',
           padding: '24px'
         }}>
+          <h2 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Asset Performance Comparison
+          </h2>
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px' }}>
               <div style={{ textAlign: 'center' }}>
@@ -481,7 +544,7 @@ function App() {
               </div>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={450}>
+            <ResponsiveContainer width="100%" height={400}>
               <LineChart data={data}>
                 <defs>
                   <linearGradient id="asset1Gradient" x1="0" y1="0" x2="0" y2="1">
@@ -495,12 +558,11 @@ function App() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
-                <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} label={{ value: 'Daily Change (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} stroke="#4b5563" />
+                <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} label={{ value: '% Change', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} stroke="#4b5563" />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="line" />
-                <Line type="monotone" dataKey="asset1Daily" stroke={asset1Info.color} strokeWidth={3} name={`${asset1Info.name} Daily %`} dot={false} fill="url(#asset1Gradient)" />
-                <Line type="monotone" dataKey="asset2Daily" stroke={asset2Info.color} strokeWidth={3} name={`${asset2Info.name} Daily %`} dot={false} fill="url(#asset2Gradient)" />
-                <Line type="monotone" dataKey="diff" stroke="#10b981" strokeWidth={2} name={`Gap (${asset2Info.symbol} - ${asset1Info.symbol})`} dot={false} strokeDasharray="5 5" />
+                <Line type="monotone" dataKey="asset1Daily" stroke={asset1Info.color} strokeWidth={3} name={`${asset1Info.name}`} dot={false} fill="url(#asset1Gradient)" />
+                <Line type="monotone" dataKey="asset2Daily" stroke={asset2Info.color} strokeWidth={3} name={`${asset2Info.name}`} dot={false} fill="url(#asset2Gradient)" />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -508,19 +570,44 @@ function App() {
 
         <div style={{
           backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          borderBottom: '1px solid #374151',
           borderRadius: '0 0 12px 12px',
-          border: '1px solid #374151',
-          padding: '16px 24px'
+          padding: '24px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ color: '#9ca3af' }}>
-              <span style={{ color: '#d1d5db', fontWeight: '500' }}>Trading Strategy:</span> LONG the asset with larger positive gaps consistently
+          <h2 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Price Gap Analysis
+          </h2>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '20px', color: '#d1d5db', marginBottom: '8px' }}>Loading chart...</div>
+                <div style={{ fontSize: '14px', color: '#6b7280' }}>Please wait</div>
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#6b7280' }}>
-              <span>Live Binance Data</span>
-              <span>•</span>
-              <span>Gap Analysis</span>
-            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={data}>
+                <defs>
+                  <linearGradient id="gapGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
+                <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} label={{ value: 'Gap (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} stroke="#4b5563" />
+                <Tooltip content={<GapTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="line" />
+                <Line type="monotone" dataKey="diff" stroke="#10b981" strokeWidth={3} name={`Gap (${asset2Info.symbol} - ${asset1Info.symbol})`} dot={false} fill="url(#gapGradient)" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+          <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <p style={{ color: '#9ca3af', fontSize: '14px' }}>
+              <span style={{ color: '#d1d5db', fontWeight: '500' }}>Trading Strategy:</span> LONG the asset with gap ≥ ±0.5%
+            </p>
           </div>
         </div>
       </div>
