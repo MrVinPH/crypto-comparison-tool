@@ -290,144 +290,47 @@ function App() {
       takeProfit = 'N/A';
       pairsTrade = null;
       confidence = 0;
-    } else if (longScore > shortScore && longScore > 5) {
-      if (lastDiff > 0) {
-        action = 'PAIRS';
-        targetAsset = asset1Info.symbol;
-        perpetualAction = `PAIRS TRADE`;
-        reasoning = `${asset2Info.symbol} ahead by ${lastDiff.toFixed(2)}%. Mean reversion expected - gap should narrow.`;
-        strategy = `PAIRS TRADE: LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol} with EQUAL $ amounts. ${asset2Info.symbol} is ${lastDiff.toFixed(2)}% ahead, creating opportunity for ${asset1Info.symbol} to catch up. Profit from gap closure regardless of market direction.`;
-        entryPrice = `Execute both positions simultaneously`;
-        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
-        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
-        pairsTrade = {
-          long: asset1Info.symbol,
-          short: asset2Info.symbol,
-          currentGap: lastDiff.toFixed(2),
-          targetGap: (lastDiff - (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
-          expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
-        };
-      } else {
-        action = 'PAIRS';
-        targetAsset = asset2Info.symbol;
-        perpetualAction = `PAIRS TRADE`;
-        reasoning = `${asset1Info.symbol} ahead by ${Math.abs(lastDiff).toFixed(2)}%. Mean reversion expected - gap should narrow.`;
-        strategy = `PAIRS TRADE: LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol} with EQUAL $ amounts. ${asset1Info.symbol} is ${Math.abs(lastDiff).toFixed(2)}% ahead, creating opportunity for ${asset2Info.symbol} to catch up. Profit from gap closure regardless of market direction.`;
-        entryPrice = `Execute both positions simultaneously`;
-        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
-        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
-        pairsTrade = {
-          long: asset2Info.symbol,
-          short: asset1Info.symbol,
-          currentGap: lastDiff.toFixed(2),
-          targetGap: (lastDiff + (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
-          expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
-        };
-      }
-      confidence = Math.min(longScore, 100);
-    } else if (shortScore > longScore && shortScore > 5) {
-      if (lastDiff > 0) {
-        action = 'PAIRS';
-        targetAsset = asset1Info.symbol;
-        perpetualAction = `PAIRS TRADE`;
-        reasoning = `${asset2Info.symbol} ahead by ${lastDiff.toFixed(2)}%. Mean reversion expected - gap should narrow.`;
-        strategy = `PAIRS TRADE: LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol} with EQUAL $ amounts. Gap is overextended at ${lastDiff.toFixed(2)}%, mean reversion likely.`;
-        entryPrice = `Execute both positions simultaneously`;
-        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
-        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
-        pairsTrade = {
-          long: asset1Info.symbol,
-          short: asset2Info.symbol,
-          currentGap: lastDiff.toFixed(2),
-          targetGap: (lastDiff - (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
-          expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
-        };
-      } else {
-        action = 'PAIRS';
-        targetAsset = asset2Info.symbol;
-        perpetualAction = `PAIRS TRADE`;
-        reasoning = `${asset1Info.symbol} ahead by ${Math.abs(lastDiff).toFixed(2)}%. Mean reversion expected - gap should narrow.`;
-        strategy = `PAIRS TRADE: LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol} with EQUAL $ amounts. Gap is overextended at ${Math.abs(lastDiff).toFixed(2)}%, mean reversion likely.`;
-        entryPrice = `Execute both positions simultaneously`;
-        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
-        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
-        pairsTrade = {
-          long: asset2Info.symbol,
-          short: asset1Info.symbol,
-          currentGap: lastDiff.toFixed(2),
-          targetGap: (lastDiff + (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
-          expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
-        };
-      }
-      confidence = Math.min(shortScore, 100);
     } else {
-      if (Math.abs(lastDiff) < 0.5) {
-        if (lastDiff >= 0) {
-          action = 'PAIRS';
-          targetAsset = asset1Info.symbol;
-          perpetualAction = `PAIRS TRADE`;
-          reasoning = `Minimal gap detected. ${asset1Info.symbol} slightly lagging.`;
-          strategy = `WEAK SIGNAL: PAIRS TRADE with LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol}.`;
-          entryPrice = `Small pairs position`;
-          pairsTrade = {
-            long: asset1Info.symbol,
-            short: asset2Info.symbol,
-            currentGap: lastDiff.toFixed(2),
-            targetGap: '0.00',
-            expectedProfit: Math.abs(lastDiff).toFixed(2)
-          };
-          confidence = 25;
-        } else {
-          action = 'PAIRS';
-          targetAsset = asset2Info.symbol;
-          perpetualAction = `PAIRS TRADE`;
-          reasoning = `Minimal gap detected. ${asset2Info.symbol} slightly lagging.`;
-          strategy = `WEAK SIGNAL: PAIRS TRADE with LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol}.`;
-          entryPrice = `Small pairs position`;
-          pairsTrade = {
-            long: asset2Info.symbol,
-            short: asset1Info.symbol,
-            currentGap: lastDiff.toFixed(2),
-            targetGap: '0.00',
-            expectedProfit: Math.abs(lastDiff).toFixed(2)
-          };
-          confidence = 25;
-        }
+      // At least ONE criteria is met - generate trade signal based on gap direction
+      if (lastDiff > 0) {
+        // ETH is outperforming BTC (positive gap)
+        // Pairs Trade: LONG BTC + SHORT ETH (expecting BTC to catch up)
+        action = 'PAIRS';
+        targetAsset = asset1Info.symbol;
+        perpetualAction = `PAIRS TRADE`;
+        reasoning = `${asset2Info.symbol} is ahead by ${lastDiff.toFixed(2)}%. Gap exceeds threshold (${minGap}%). Mean reversion expected - ${asset1Info.symbol} should catch up.`;
+        strategy = `PAIRS TRADE: LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol} with EQUAL $ amounts. ${asset2Info.symbol} is outperforming by ${lastDiff.toFixed(2)}%, creating opportunity for ${asset1Info.symbol} to catch up.`;
+        entryPrice = `Execute both positions simultaneously`;
+        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
+        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
+        pairsTrade = {
+          long: asset1Info.symbol,
+          short: asset2Info.symbol,
+          currentGap: lastDiff.toFixed(2),
+          targetGap: (lastDiff - (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
+          expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
+        };
+        confidence = Math.min(60 + (meetsWinRate ? 15 : 0) + (meetsProfitFactor ? 15 : 0) + (meetsGap ? 10 : 0), 100);
       } else {
-        if (lastDiff > 0) {
-          action = 'PAIRS';
-          targetAsset = asset1Info.symbol;
-          perpetualAction = `PAIRS TRADE`;
-          reasoning = `${asset1Info.symbol} underperforming. Potential value opportunity.`;
-          strategy = `MODERATE SIGNAL: PAIRS TRADE with LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol} for mean reversion.`;
-          entryPrice = `Execute pairs trade now`;
-          pairsTrade = {
-            long: asset1Info.symbol,
-            short: asset2Info.symbol,
-            currentGap: lastDiff.toFixed(2),
-            targetGap: (lastDiff - (Math.abs(lastDiff - mean) * 0.5)).toFixed(2),
-            expectedProfit: (Math.abs(lastDiff - mean) * 0.5).toFixed(2)
-          };
-          confidence = Math.max(longScore, shortScore, 30);
-        } else {
-          action = 'PAIRS';
-          targetAsset = asset2Info.symbol;
-          perpetualAction = `PAIRS TRADE`;
-          reasoning = `${asset2Info.symbol} underperforming. Potential value opportunity.`;
-          strategy = `MODERATE SIGNAL: PAIRS TRADE with LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol} for mean reversion.`;
-          entryPrice = `Execute pairs trade now`;
-          pairsTrade = {
-            long: asset2Info.symbol,
-            short: asset1Info.symbol,
-            currentGap: lastDiff.toFixed(2),
-            targetGap: (lastDiff + (Math.abs(lastDiff - mean) * 0.5)).toFixed(2),
-            expectedProfit: (Math.abs(lastDiff - mean) * 0.5).toFixed(2)
-          };
-          confidence = Math.max(longScore, shortScore, 30);
-        }
+        // BTC is outperforming ETH (negative gap)
+        // Pairs Trade: LONG ETH + SHORT BTC (expecting ETH to catch up)
+        action = 'PAIRS';
+        targetAsset = asset2Info.symbol;
+        perpetualAction = `PAIRS TRADE`;
+        reasoning = `${asset1Info.symbol} is ahead by ${Math.abs(lastDiff).toFixed(2)}%. Gap exceeds threshold (${minGap}%). Mean reversion expected - ${asset2Info.symbol} should catch up.`;
+        strategy = `PAIRS TRADE: LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol} with EQUAL $ amounts. ${asset1Info.symbol} is outperforming by ${Math.abs(lastDiff).toFixed(2)}%, creating opportunity for ${asset2Info.symbol} to catch up.`;
+        entryPrice = `Execute both positions simultaneously`;
+        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
+        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
+        pairsTrade = {
+          long: asset2Info.symbol,
+          short: asset1Info.symbol,
+          currentGap: lastDiff.toFixed(2),
+          targetGap: (lastDiff + (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
+          expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
+        };
+        confidence = Math.min(60 + (meetsWinRate ? 15 : 0) + (meetsProfitFactor ? 15 : 0) + (meetsGap ? 10 : 0), 100);
       }
-      stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
-      takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.5).toFixed(2)}%`;
     }
     
     const volatility = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
@@ -446,7 +349,6 @@ function App() {
       positionSize = '5-10% of portfolio';
       leverage = '5-10x leverage possible';
     }
-    
     return {
       action: action,
       targetAsset: targetAsset,
