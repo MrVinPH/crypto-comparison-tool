@@ -241,7 +241,8 @@ function App() {
     
     let action, targetAsset, perpetualAction, confidence, reasoning, strategy, entryPrice, stopLoss, takeProfit;
     
-    if (longScore > shortScore && longScore > 15) {
+    // Lowered threshold to 5 to show more signals (including weak ones)
+    if (longScore > shortScore && longScore > 5) {
       if (lastDiff > 0) {
         action = 'LONG';
         targetAsset = asset2Info.symbol;
@@ -262,7 +263,7 @@ function App() {
         takeProfit = `Take profit: ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}% gain`;
       }
       confidence = Math.min(longScore, 100);
-    } else if (shortScore > longScore && shortScore > 15) {
+    } else if (shortScore > longScore && shortScore > 5) {
       if (lastDiff > 0) {
         action = 'SHORT';
         targetAsset = asset2Info.symbol;
@@ -381,20 +382,21 @@ function App() {
       diff: lastDiff
     };
     
+    // Simplified display showing LONG/SHORT perpetual action
     if (lastDiff > 0.5) {
       signal.action = 'LONG';
       signal.asset = asset2Info.symbol;
-      signal.reason = `${asset2Info.symbol} is outperforming ${asset1Info.symbol} by ${lastDiff.toFixed(2)}%`;
+      signal.reason = `LONG ${asset2Info.symbol} / SHORT ${asset1Info.symbol}`;
       signal.strength = Math.min(Math.abs(lastDiff) / 2 * 100, 100);
     } else if (lastDiff < -0.5) {
       signal.action = 'LONG';
       signal.asset = asset1Info.symbol;
-      signal.reason = `${asset1Info.symbol} is outperforming ${asset2Info.symbol} by ${Math.abs(lastDiff).toFixed(2)}%`;
+      signal.reason = `LONG ${asset1Info.symbol} / SHORT ${asset2Info.symbol}`;
       signal.strength = Math.min(Math.abs(lastDiff) / 2 * 100, 100);
     } else {
       signal.action = 'NEUTRAL';
       signal.asset = 'BOTH';
-      signal.reason = `Small gap between ${asset1Info.symbol} and ${asset2Info.symbol} (${Math.abs(lastDiff).toFixed(2)}%)`;
+      signal.reason = `Gap too small: ${Math.abs(lastDiff).toFixed(2)}% - Wait for clearer setup`;
       signal.strength = 0;
     }
     
@@ -956,18 +958,20 @@ function App() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   {tradingSignal.action === 'LONG' ? <ArrowUpCircle size={32} color="#34d399" /> : <TrendingUp size={32} color="#9ca3af" />}
                   <div>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'white' }}>
-                      {tradingSignal.action === 'LONG' ? `LONG ${tradingSignal.asset}` : 'NEUTRAL POSITION'}
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>
+                      {tradingSignal.reason}
                     </div>
-                    <div style={{ fontSize: '14px', color: '#d1d5db', marginTop: '4px' }}>{tradingSignal.reason}</div>
+                    <div style={{ fontSize: '13px', color: '#9ca3af', marginTop: '4px' }}>
+                      Quick Signal - See AI Analysis above for full strategy
+                    </div>
                   </div>
                 </div>
                 {tradingSignal.strength > 0 && (
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#34d399' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#34d399' }}>
                       {tradingSignal.strength.toFixed(0)}%
                     </div>
-                    <div style={{ fontSize: '12px', color: '#9ca3af' }}>Signal Strength</div>
+                    <div style={{ fontSize: '12px', color: '#9ca3af' }}>Gap Strength</div>
                   </div>
                 )}
               </div>
