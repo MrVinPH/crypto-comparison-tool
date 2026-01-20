@@ -207,7 +207,8 @@ function App() {
   const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info) => {
     if (!chartData.length || !patterns.length || !backtestResults) return null;
     
-    const lastDiff = chartData[chartData.length - 1].diff;
+    // Use 24h gap instead of chart data gap
+    const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change) : 0;
     const diffs = chartData.map(d => d.diff);
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
     const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
@@ -391,20 +392,32 @@ function App() {
       const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
       const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
       
-      // Calculate previous price (the starting price of the timeframe)
-      const prevPrice1 = firstPrice1;
-      const prevPrice2 = firstPrice2;
+      // Get 24h ago price (previous candle for daily, or appropriate lookback)
+      const price24hAgo1 = data1.length >= 2 ? parseFloat(data1[data1.length - 2][4]) : firstPrice1;
+      const price24hAgo2 = data2.length >= 2 ? parseFloat(data2[data2.length - 2][4]) : firstPrice2;
+      
+      // Calculate 24h changes
+      const change24h1 = ((currentPrice1 - price24hAgo1) / price24hAgo1) * 100;
+      const change24h2 = ((currentPrice2 - price24hAgo2) / price24hAgo2) * 100;
+      
+      // Calculate timeframe changes
+      const changeTimeframe1 = ((currentPrice1 - firstPrice1) / firstPrice1) * 100;
+      const changeTimeframe2 = ((currentPrice2 - firstPrice2) / firstPrice2) * 100;
       
       setPriceInfo({
         asset1: {
           current: currentPrice1,
-          previous: prevPrice1,
-          change: ((currentPrice1 - prevPrice1) / prevPrice1) * 100
+          previous: price24hAgo1,
+          startPrice: firstPrice1,
+          change: change24h1,
+          changeTimeframe: changeTimeframe1
         },
         asset2: {
           current: currentPrice2,
-          previous: prevPrice2,
-          change: ((currentPrice2 - prevPrice2) / prevPrice2) * 100
+          previous: price24hAgo2,
+          startPrice: firstPrice2,
+          change: change24h2,
+          changeTimeframe: changeTimeframe2
         }
       });
       
@@ -1269,16 +1282,31 @@ function App() {
             padding: '16px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>{asset1Info.symbol} CHANGE</span>
-              {currentStats.asset1Daily >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
+              <span style={{ color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>{asset1Info.symbol} 24H CHANGE</span>
+              {priceInfo.asset1 && priceInfo.asset1.change >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: currentStats.asset1Daily >= 0 ? '#34d399' : '#f87171' }}>
-              {currentStats.asset1Daily >= 0 ? '+' : ''}{currentStats.asset1Daily}%
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset1 && priceInfo.asset1.change >= 0 ? '#34d399' : '#f87171' }}>
+              {priceInfo.asset1 && (priceInfo.asset1.change >= 0 ? '+' : '')}{priceInfo.asset1?.change.toFixed(2)}%
             </div>
             {priceInfo.asset1 && (
               <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
-                <div>Current: ${priceInfo.asset1.current.toLocaleString()}</div>
-                <div>Start of {timeframe}: ${priceInfo.asset1.previous.toLocaleString()}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <span>Current:</span>
+                  <span>${priceInfo.asset1.current.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span>24h ago:</span>
+                  <span>${priceInfo.asset1.previous.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid rgba(156, 163, 175, 0.2)' }}>
+                  <span style={{ fontWeight: '500' }}>{timeframe} Change:</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    color: priceInfo.asset1.changeTimeframe >= 0 ? '#34d399' : '#f87171'
+                  }}>
+                    {priceInfo.asset1.changeTimeframe >= 0 ? '+' : ''}{priceInfo.asset1.changeTimeframe.toFixed(2)}%
+                  </span>
+                </div>
               </div>
             )}
             <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg: {avgAsset1}%</div>
@@ -1291,16 +1319,31 @@ function App() {
             padding: '16px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ color: '#c084fc', fontSize: '12px', fontWeight: 'bold' }}>{asset2Info.symbol} CHANGE</span>
-              {currentStats.asset2Daily >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
+              <span style={{ color: '#c084fc', fontSize: '12px', fontWeight: 'bold' }}>{asset2Info.symbol} 24H CHANGE</span>
+              {priceInfo.asset2 && priceInfo.asset2.change >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: currentStats.asset2Daily >= 0 ? '#34d399' : '#f87171' }}>
-              {currentStats.asset2Daily >= 0 ? '+' : ''}{currentStats.asset2Daily}%
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset2 && priceInfo.asset2.change >= 0 ? '#34d399' : '#f87171' }}>
+              {priceInfo.asset2 && (priceInfo.asset2.change >= 0 ? '+' : '')}{priceInfo.asset2?.change.toFixed(2)}%
             </div>
             {priceInfo.asset2 && (
               <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
-                <div>Current: ${priceInfo.asset2.current.toLocaleString()}</div>
-                <div>Start of {timeframe}: ${priceInfo.asset2.previous.toLocaleString()}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <span>Current:</span>
+                  <span>${priceInfo.asset2.current.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span>24h ago:</span>
+                  <span>${priceInfo.asset2.previous.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid rgba(156, 163, 175, 0.2)' }}>
+                  <span style={{ fontWeight: '500' }}>{timeframe} Change:</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    color: priceInfo.asset2.changeTimeframe >= 0 ? '#34d399' : '#f87171'
+                  }}>
+                    {priceInfo.asset2.changeTimeframe >= 0 ? '+' : ''}{priceInfo.asset2.changeTimeframe.toFixed(2)}%
+                  </span>
+                </div>
               </div>
             )}
             <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg: {avgAsset2}%</div>
@@ -1313,14 +1356,14 @@ function App() {
             padding: '16px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold' }}>PRICE GAP</span>
-              {currentStats.diff >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
+              <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold' }}>24H PRICE GAP</span>
+              {priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: currentStats.diff >= 0 ? '#34d399' : '#f87171' }}>
-              {currentStats.diff >= 0 ? '+' : ''}{currentStats.diff}%
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '#34d399' : '#f87171' }}>
+              {priceInfo.asset1 && priceInfo.asset2 && ((priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '+' : '')}{priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00'}%
             </div>
             <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
-              {asset2Info.symbol} {currentStats.asset2Daily >= 0 ? '+' : ''}{currentStats.asset2Daily}% vs {asset1Info.symbol} {currentStats.asset1Daily >= 0 ? '+' : ''}{currentStats.asset1Daily}%
+              {asset2Info.symbol} {priceInfo.asset2?.change.toFixed(2)}% vs {asset1Info.symbol} {priceInfo.asset1?.change.toFixed(2)}%
             </div>
             <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg Gap: {avgDiff}%</div>
           </div>
