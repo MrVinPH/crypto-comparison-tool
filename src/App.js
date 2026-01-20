@@ -70,97 +70,95 @@ function App() {
     }
     
     return signal;
+  };
+
   const loadData = async () => {
-  setLoading(true);
-  setError(null);
-  
-  const asset1Info = getAssetInfo(asset1);
-  const asset2Info = getAssetInfo(asset2);
-
-  try {
-    const { interval, limit } = getTimeframeDetails(timeframe);
+    setLoading(true);
+    setError(null);
     
-    const url1 = `https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=${interval}&limit=${limit}`;
-    const url2 = `https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=${interval}&limit=${limit}`;
-    
-    const [response1, response2] = await Promise.all([
-      fetch(url1),
-      fetch(url2)
-    ]);
+    const asset1Info = getAssetInfo(asset1);
+    const asset2Info = getAssetInfo(asset2);
 
-    if (!response1.ok || !response2.ok) {
-      throw new Error('Binance API request failed');
-    }
+    try {
+      const { interval, limit } = getTimeframeDetails(timeframe);
+      
+      const url1 = `https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=${interval}&limit=${limit}`;
+      const url2 = `https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=${interval}&limit=${limit}`;
+      
+      const [response1, response2] = await Promise.all([
+        fetch(url1),
+        fetch(url2)
+      ]);
 
-    const data1 = await response1.json();
-    const data2 = await response2.json();
-
-    if (!data1.length || !data2.length) {
-      throw new Error('No data received');
-    }
-
-    const chartData = [];
-    const minLength = Math.min(data1.length, data2.length);
-    
-    const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
-    const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
-    
-    // Calculate previous prices (second to last candle, or use first candle if only one exists)
-    const prevPrice1 = data1.length > 1 ? parseFloat(data1[data1.length - 2][4]) : parseFloat(data1[0][4]);
-    const prevPrice2 = data2.length > 1 ? parseFloat(data2[data2.length - 2][4]) : parseFloat(data2[0][4]);
-    
-    setPriceInfo({
-      asset1: {
-        current: currentPrice1,
-        previous: prevPrice1,
-        change: ((currentPrice1 - prevPrice1) / prevPrice1) * 100
-      },
-      asset2: {
-        current: currentPrice2,
-        previous: prevPrice2,
-        change: ((currentPrice2 - prevPrice2) / prevPrice2) * 100
+      if (!response1.ok || !response2.ok) {
+        throw new Error('Binance API request failed');
       }
-    });
-    
-    // Get starting prices (first candle in timeframe)
-    const startPrice1 = parseFloat(data1[0][4]);
-    const startPrice2 = parseFloat(data2[0][4]);
 
-    for (let i = 0; i < minLength; i++) {
-      const currentClose1 = parseFloat(data1[i][4]);
-      const currentClose2 = parseFloat(data2[i][4]);
+      const data1 = await response1.json();
+      const data2 = await response2.json();
+
+      if (!data1.length || !data2.length) {
+        throw new Error('No data received');
+      }
+
+      const chartData = [];
+      const minLength = Math.min(data1.length, data2.length);
       
-      const timestamp = data1[i][0];
-      const date = new Date(timestamp);
+      const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
+      const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
       
-      // Calculate % change from START of timeframe (not previous candle)
-      const dailyChange1 = ((currentClose1 - startPrice1) / startPrice1) * 100;
-      const dailyChange2 = ((currentClose2 - startPrice2) / startPrice2) * 100;
-      const diff = dailyChange2 - dailyChange1;
+      const prevPrice1 = data1.length > 1 ? parseFloat(data1[data1.length - 2][4]) : parseFloat(data1[0][4]);
+      const prevPrice2 = data2.length > 1 ? parseFloat(data2[data2.length - 2][4]) : parseFloat(data2[0][4]);
       
-      const dateFormat = limit > 90 
-        ? { month: 'short', day: 'numeric' }
-        : interval === '1h'
-        ? { month: 'short', day: 'numeric', hour: 'numeric' }
-        : { month: 'short', day: 'numeric' };
-      
-      chartData.push({
-        date: date.toLocaleDateString('en-US', dateFormat),
-        timestamp: timestamp,
-        asset1Daily: parseFloat(dailyChange1.toFixed(2)),
-        asset2Daily: parseFloat(dailyChange2.toFixed(2)),
-        diff: parseFloat(diff.toFixed(2))
+      setPriceInfo({
+        asset1: {
+          current: currentPrice1,
+          previous: prevPrice1,
+          change: ((currentPrice1 - prevPrice1) / prevPrice1) * 100
+        },
+        asset2: {
+          current: currentPrice2,
+          previous: prevPrice2,
+          change: ((currentPrice2 - prevPrice2) / prevPrice2) * 100
+        }
       });
-    }
+      
+      const startPrice1 = parseFloat(data1[0][4]);
+      const startPrice2 = parseFloat(data2[0][4]);
 
-    setData(chartData);
-    setTradingSignal(analyzeTradingSignal(chartData, asset1Info, asset2Info));
-  } catch (err) {
-    setError(`Failed to load data: ${err.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
+      for (let i = 0; i < minLength; i++) {
+        const currentClose1 = parseFloat(data1[i][4]);
+        const currentClose2 = parseFloat(data2[i][4]);
+        
+        const timestamp = data1[i][0];
+        const date = new Date(timestamp);
+        
+        const dailyChange1 = ((currentClose1 - startPrice1) / startPrice1) * 100;
+        const dailyChange2 = ((currentClose2 - startPrice2) / startPrice2) * 100;
+        const diff = dailyChange2 - dailyChange1;
+        
+        const dateFormat = limit > 90 
+          ? { month: 'short', day: 'numeric' }
+          : interval === '1h'
+          ? { month: 'short', day: 'numeric', hour: 'numeric' }
+          : { month: 'short', day: 'numeric' };
+        
+        chartData.push({
+          date: date.toLocaleDateString('en-US', dateFormat),
+          timestamp: timestamp,
+          asset1Daily: parseFloat(dailyChange1.toFixed(2)),
+          asset2Daily: parseFloat(dailyChange2.toFixed(2)),
+          diff: parseFloat(diff.toFixed(2))
+        });
+      }
+
+      setData(chartData);
+      setTradingSignal(analyzeTradingSignal(chartData, asset1Info, asset2Info));
+    } catch (err) {
+      setError(`Failed to load data: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
