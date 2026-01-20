@@ -1279,9 +1279,8 @@ function App() {
               </div>
             </div>
           </div>
-        </div>
 
-        {error && (
+          {error && (
             <div style={{
               marginBottom: '16px',
               backgroundColor: 'rgba(127, 29, 29, 0.5)',
