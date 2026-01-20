@@ -458,6 +458,21 @@ function App() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe, interval, asset1, asset2]);
+
+  useEffect(() => {
+    // Regenerate prediction when thresholds change
+    if (data.length > 0 && backtestResults) {
+      const asset1Info = getAssetInfo(asset1);
+      const asset2Info = getAssetInfo(asset2);
+      const patterns = detectPatterns(data);
+      const prediction = generatePrediction(data, patterns, backtestResults, asset1Info, asset2Info);
+      setAlgoAnalysis({
+        patterns,
+        prediction
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manualThresholds]);
   
   const asset1Info = getAssetInfo(asset1);
   const asset2Info = getAssetInfo(asset2);
