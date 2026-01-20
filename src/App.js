@@ -941,7 +941,8 @@ function App() {
           </div>
         </div>
 
-        {tradingSignal && (
+        {/* Quick Signal Summary - Aligned with AI */}
+        {algoAnalysis && algoAnalysis.prediction && (
           <div style={{
             backgroundColor: '#1f2937',
             borderLeft: '1px solid #374151',
@@ -951,30 +952,98 @@ function App() {
             <div style={{
               borderRadius: '8px',
               padding: '16px',
-              border: tradingSignal.action === 'LONG' ? '2px solid rgba(16, 185, 129, 0.5)' : '2px solid rgba(75, 85, 99, 0.5)',
-              backgroundColor: tradingSignal.action === 'LONG' ? 'rgba(6, 78, 59, 0.3)' : 'rgba(55, 65, 81, 0.3)'
+              border: parseFloat(algoAnalysis.prediction.confidence) >= 40 
+                ? '2px solid rgba(16, 185, 129, 0.5)' 
+                : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                ? '2px solid rgba(251, 191, 36, 0.5)'
+                : '2px solid rgba(239, 68, 68, 0.5)',
+              backgroundColor: parseFloat(algoAnalysis.prediction.confidence) >= 40
+                ? 'rgba(6, 78, 59, 0.3)'
+                : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                ? 'rgba(120, 53, 15, 0.3)'
+                : 'rgba(127, 29, 29, 0.3)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {tradingSignal.action === 'LONG' ? <ArrowUpCircle size={32} color="#34d399" /> : <TrendingUp size={32} color="#9ca3af" />}
+                  {parseFloat(algoAnalysis.prediction.confidence) >= 40 ? (
+                    <CheckCircle size={32} color="#34d399" />
+                  ) : parseFloat(algoAnalysis.prediction.confidence) >= 20 ? (
+                    <ArrowUpCircle size={32} color="#fbbf24" />
+                  ) : (
+                    <ArrowUpCircle size={32} color="#f87171" />
+                  )}
                   <div>
                     <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>
-                      {tradingSignal.reason}
+                      {parseFloat(algoAnalysis.prediction.confidence) >= 40 
+                        ? `✅ GOOD SIGNAL: ${algoAnalysis.prediction.perpetualAction}`
+                        : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                        ? `⚠️ WEAK SIGNAL: ${algoAnalysis.prediction.perpetualAction}`
+                        : `❌ VERY WEAK: ${algoAnalysis.prediction.perpetualAction}`
+                      }
                     </div>
-                    <div style={{ fontSize: '13px', color: '#9ca3af', marginTop: '4px' }}>
-                      Quick Signal - See AI Analysis above for full strategy
+                    <div style={{ fontSize: '13px', color: '#d1d5db', marginTop: '4px' }}>
+                      {parseFloat(algoAnalysis.prediction.confidence) >= 40 
+                        ? `Confidence: ${algoAnalysis.prediction.confidence}% - Trade recommended`
+                        : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                        ? `Confidence: ${algoAnalysis.prediction.confidence}% - Small position only or skip`
+                        : `Confidence: ${algoAnalysis.prediction.confidence}% - NOT RECOMMENDED, wait for better setup`
+                      }
                     </div>
                   </div>
                 </div>
-                {tradingSignal.strength > 0 && (
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#34d399' }}>
-                      {tradingSignal.strength.toFixed(0)}%
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#9ca3af' }}>Gap Strength</div>
-                  </div>
-                )}
+                <div style={{ textAlign: 'right' }}>
+                  {backtestResults && (
+                    <>
+                      <div style={{ 
+                        fontSize: '24px', 
+                        fontWeight: 'bold', 
+                        color: parseFloat(backtestResults.winRate) >= 60 ? '#34d399' : parseFloat(backtestResults.winRate) >= 50 ? '#fbbf24' : '#f87171'
+                      }}>
+                        {backtestResults.winRate}%
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#9ca3af' }}>Win Rate</div>
+                    </>
+                  )}
+                </div>
               </div>
+              
+              {/* Warning Messages */}
+              {parseFloat(algoAnalysis.prediction.confidence) < 40 && (
+                <div style={{ 
+                  marginTop: '12px', 
+                  padding: '12px', 
+                  backgroundColor: 'rgba(0,0,0,0.3)', 
+                  borderRadius: '6px',
+                  borderLeft: parseFloat(algoAnalysis.prediction.confidence) < 20 ? '3px solid #ef4444' : '3px solid #f59e0b'
+                }}>
+                  <div style={{ fontSize: '13px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '4px' }}>
+                    ⚠️ TRADING WARNING
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
+                    {parseFloat(algoAnalysis.prediction.confidence) < 20 
+                      ? `This signal has very low confidence (${algoAnalysis.prediction.confidence}%). High risk of loss. Recommended action: SKIP this trade and wait for confidence above 40%.`
+                      : `This signal has low confidence (${algoAnalysis.prediction.confidence}%). Only consider if you have high risk tolerance. Use 1-2% position size maximum.`
+                    }
+                  </div>
+                </div>
+              )}
+              
+              {backtestResults && parseFloat(backtestResults.winRate) < 55 && (
+                <div style={{ 
+                  marginTop: '12px', 
+                  padding: '12px', 
+                  backgroundColor: 'rgba(0,0,0,0.3)', 
+                  borderRadius: '6px',
+                  borderLeft: '3px solid #ef4444'
+                }}>
+                  <div style={{ fontSize: '13px', color: '#f87171', fontWeight: 'bold', marginBottom: '4px' }}>
+                    📉 POOR BACKTEST PERFORMANCE
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
+                    Historical win rate of {backtestResults.winRate}% is below profitable threshold (need 55%+). This strategy has lost money in backtesting. Profit Factor: {backtestResults.profitFactor} (need 1.5+).
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
