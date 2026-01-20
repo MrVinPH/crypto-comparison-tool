@@ -542,7 +542,6 @@ function App() {
     return null;
   };
 
-  const currentStats = data.length > 0 ? data[data.length - 1] : { asset1Daily: 0, asset2Daily: 0, diff: 0 };
   const avgAsset1 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset1Daily, 0) / data.length).toFixed(2) : 0;
   const avgAsset2 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset2Daily, 0) / data.length).toFixed(2) : 0;
   const avgDiff = data.length > 0 ? (data.reduce((sum, d) => sum + d.diff, 0) / data.length).toFixed(2) : 0;
