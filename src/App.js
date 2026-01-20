@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { RefreshCw, TrendingUp, TrendingDown, ArrowUpCircle, Brain, AlertTriangle, CheckCircle } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { RefreshCw, TrendingUp, TrendingDown, ArrowUpCircle, Brain, CheckCircle } from 'lucide-react';
 
 const CRYPTO_OPTIONS = [
   { id: 'BTCUSDT', symbol: 'BTC', name: 'Bitcoin', color: '#f7931a' },
@@ -143,7 +143,7 @@ function App() {
   };
 
   // Backtesting Engine
-  const runBacktest = (chartData, asset1Info, asset2Info) => {
+  const runBacktest = (chartData) => {
     if (chartData.length < 20) return null;
     
     let trades = [];
@@ -163,14 +163,12 @@ function App() {
       const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
       const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
       
-      let signal = null;
       let entryPrice = currentDiff;
       let exitPrice = nextDiff;
       
       // Mean Reversion Strategy
       if (currentDiff > mean + 1.2 * stdDev) {
-        signal = 'SHORT_GAP'; // Expect gap to narrow (short asset2, long asset1)
-        const profitLoss = entryPrice - exitPrice; // Profit if gap narrows
+        const profitLoss = entryPrice - exitPrice;
         totalProfit += profitLoss;
         
         if (profitLoss > 0) wins++;
@@ -185,8 +183,7 @@ function App() {
           win: profitLoss > 0
         });
       } else if (currentDiff < mean - 1.2 * stdDev) {
-        signal = 'LONG_GAP'; // Expect gap to widen (long asset2, short asset1)
-        const profitLoss = exitPrice - entryPrice; // Profit if gap widens
+        const profitLoss = exitPrice - entryPrice;
         totalProfit += profitLoss;
         
         if (profitLoss > 0) wins++;
@@ -249,7 +246,7 @@ function App() {
     
     // Mean reversion bias
     if (lastDiff > mean + 0.5) {
-      shortScore += 15; // Expect reversion to mean
+      shortScore += 15;
     } else if (lastDiff < mean - 0.5) {
       longScore += 15;
     }
@@ -429,7 +426,7 @@ function App() {
       
       // Run Advanced Analysis
       const patterns = detectPatterns(chartData);
-      const backtest = runBacktest(chartData, asset1Info, asset2Info);
+      const backtest = runBacktest(chartData);
       const prediction = generatePrediction(chartData, patterns, backtest, asset1Info, asset2Info);
       
       setAlgoAnalysis({
