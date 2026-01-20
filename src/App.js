@@ -392,13 +392,25 @@ function App() {
       const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
       const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
       
-      // Get 24h ago price (previous candle for daily, or appropriate lookback)
-      const price24hAgo1 = data1.length >= 2 ? parseFloat(data1[data1.length - 2][4]) : firstPrice1;
-      const price24hAgo2 = data2.length >= 2 ? parseFloat(data2[data2.length - 2][4]) : firstPrice2;
+      // Fetch 24h data (1 day ago) using separate API call
+      const fetchUrl1_24h = `https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=1d&limit=2`;
+      const fetchUrl2_24h = `https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=1d&limit=2`;
       
-      // Calculate 24h changes
-      const change24h1 = ((currentPrice1 - price24hAgo1) / price24hAgo1) * 100;
-      const change24h2 = ((currentPrice2 - price24hAgo2) / price24hAgo2) * 100;
+      const [response1_24h, response2_24h] = await Promise.all([
+        fetch(fetchUrl1_24h),
+        fetch(fetchUrl2_24h)
+      ]);
+      
+      const data1_24h = await response1_24h.json();
+      const data2_24h = await response2_24h.json();
+      
+      // Get previous day close (close of day before current day)
+      const prevDayClose1 = data1_24h.length >= 2 ? parseFloat(data1_24h[data1_24h.length - 2][4]) : firstPrice1;
+      const prevDayClose2 = data2_24h.length >= 2 ? parseFloat(data2_24h[data2_24h.length - 2][4]) : firstPrice2;
+      
+      // Calculate 24h changes based on previous day close
+      const change24h1 = ((currentPrice1 - prevDayClose1) / prevDayClose1) * 100;
+      const change24h2 = ((currentPrice2 - prevDayClose2) / prevDayClose2) * 100;
       
       // Calculate timeframe changes
       const changeTimeframe1 = ((currentPrice1 - firstPrice1) / firstPrice1) * 100;
@@ -407,14 +419,14 @@ function App() {
       setPriceInfo({
         asset1: {
           current: currentPrice1,
-          previous: price24hAgo1,
+          previous: prevDayClose1,
           startPrice: firstPrice1,
           change: change24h1,
           changeTimeframe: changeTimeframe1
         },
         asset2: {
           current: currentPrice2,
-          previous: price24hAgo2,
+          previous: prevDayClose2,
           startPrice: firstPrice2,
           change: change24h2,
           changeTimeframe: changeTimeframe2
@@ -1294,7 +1306,7 @@ function App() {
                   <span>${priceInfo.asset1.current.toLocaleString()}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span>24h ago:</span>
+                  <span>Prev day close:</span>
                   <span>${priceInfo.asset1.previous.toLocaleString()}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid rgba(156, 163, 175, 0.2)' }}>
@@ -1331,7 +1343,7 @@ function App() {
                   <span>${priceInfo.asset2.current.toLocaleString()}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span>24h ago:</span>
+                  <span>Prev day close:</span>
                   <span>${priceInfo.asset2.previous.toLocaleString()}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid rgba(156, 163, 175, 0.2)' }}>
