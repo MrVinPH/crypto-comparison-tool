@@ -241,9 +241,6 @@ function App() {
     // Expected value per trade
     const expectedValue = (winRate * avgWin) - ((1 - winRate) * avgLoss) - feePerTrade;
     
-    // Calculate minimum gap needed for profitability
-    const gapVolatilityRatio = Math.abs(lastDiff) / stdDev;
-    
     // Dynamic thresholds based on actual backtest performance
     let minWinRate, minProfitFactor, minGap, skipReason;
     
