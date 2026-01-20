@@ -251,6 +251,9 @@ function App() {
       longScore += 15;
     }
     
+    // ALWAYS provide a recommendation, even if weak
+    const minThreshold = 15; // Lowered from 30 to always show something
+    
     // Determine action
     let action, targetAsset, confidence, reasoning;
     
@@ -567,7 +570,7 @@ function App() {
           </button>
         </div>
 
-        {/* AI PREDICTION BOX */}
+        {/* AI PREDICTION BOX - ALWAYS SHOWN */}
         {algoAnalysis && algoAnalysis.prediction && (
           <div style={{
             backgroundColor: '#1f2937',
@@ -598,7 +601,7 @@ function App() {
                     } />
                     <div>
                       <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'white' }}>
-                        BUY {algoAnalysis.prediction.safeAsset}
+                        {algoAnalysis.prediction.perpetualAction}
                       </div>
                       <div style={{ fontSize: '16px', color: '#d1d5db', marginTop: '4px' }}>
                         AI Confidence: {algoAnalysis.prediction.confidence}%
@@ -675,6 +678,16 @@ function App() {
                       }}>
                         <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Position Size</div>
                         <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fbbf24' }}>{algoAnalysis.prediction.positionSize}</div>
+                      </div>
+                      
+                      <div style={{ 
+                        padding: '12px',
+                        backgroundColor: 'rgba(0,0,0,0.3)',
+                        borderRadius: '6px',
+                        borderLeft: '3px solid #8b5cf6'
+                      }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Leverage</div>
+                        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#a78bfa' }}>{algoAnalysis.prediction.leverage}</div>
                       </div>
                     </div>
                   </div>
