@@ -71,16 +71,15 @@ function App() {
       diff: lastDiff
     };
     
-    // More sensitive thresholds: 0.5% instead of 2%
     if (lastDiff > 0.5) {
       signal.action = 'LONG';
       signal.asset = asset2Info.symbol;
-      signal.reason = `${asset2Info.symbol} is outperforming ${asset1Info.symbol} by ${lastDiff.toFixed(2)}%`;
+      signal.reason = `${asset2Info.symbol} outperforming ${asset1Info.symbol} by ${lastDiff.toFixed(2)}%`;
       signal.strength = Math.min(Math.abs(lastDiff) / 3 * 100, 100);
     } else if (lastDiff < -0.5) {
       signal.action = 'LONG';
       signal.asset = asset1Info.symbol;
-      signal.reason = `${asset1Info.symbol} is outperforming ${asset2Info.symbol} by ${Math.abs(lastDiff).toFixed(2)}%`;
+      signal.reason = `${asset1Info.symbol} outperforming ${asset2Info.symbol} by ${Math.abs(lastDiff).toFixed(2)}%`;
       signal.strength = Math.min(Math.abs(lastDiff) / 3 * 100, 100);
     } else {
       signal.action = 'NEUTRAL';
@@ -103,7 +102,6 @@ function App() {
       const days = getTimeframeDays(timeframe);
       const binanceInterval = INTERVALS.find(i => i.id === interval)?.binance || '1d';
       
-      // Calculate limit based on interval and timeframe
       let limit;
       if (binanceInterval === '1h') {
         limit = Math.min(days * 24, 1000);
@@ -140,12 +138,11 @@ function App() {
         throw new Error('No data received');
       }
 
-      // Calculate % change from the FIRST price in the timeframe (not previous day)
-      const startPrice1 = parseFloat(data1[0][4]); // First close price
-      const startPrice2 = parseFloat(data2[0][4]); // First close price
+      const startPrice1 = parseFloat(data1[0][4]);
+      const startPrice2 = parseFloat(data2[0][4]);
       
-      const currentPrice1 = parseFloat(data1[data1.length - 1][4]); // Last close price
-      const currentPrice2 = parseFloat(data2[data2.length - 1][4]); // Last close price
+      const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
+      const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
       
       setPriceInfo({
         asset1: {
@@ -171,7 +168,6 @@ function App() {
         const timestamp = data1[i][0];
         const date = new Date(timestamp);
         
-        // Calculate % change from START of timeframe (not previous candle)
         const percentChange1 = ((currentClose1 - startPrice1) / startPrice1) * 100;
         const percentChange2 = ((currentClose2 - startPrice2) / startPrice2) * 100;
         const diff = percentChange2 - percentChange1;
@@ -185,7 +181,6 @@ function App() {
           dateFormat = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         }
         
-        // Price data for first chart
         priceChartData.push({
           date: dateFormat,
           timestamp: timestamp,
@@ -193,7 +188,6 @@ function App() {
           asset2Change: parseFloat(percentChange2.toFixed(2)),
         });
 
-        // Gap data for second chart
         gapChartData.push({
           date: dateFormat,
           timestamp: timestamp,
@@ -222,16 +216,8 @@ function App() {
   const PriceTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       return (
-        <div style={{
-          backgroundColor: 'white',
-          padding: '12px',
-          border: '1px solid #ccc',
-          borderRadius: '8px',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-        }}>
-          <p style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>
-            {payload[0].payload.date}
-          </p>
+        <div style={{ backgroundColor: 'white', padding: '12px', border: '1px solid #ccc', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <p style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>{payload[0].payload.date}</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: asset1Info.color }}></div>
@@ -252,25 +238,13 @@ function App() {
     if (active && payload && payload.length) {
       const value = payload[0].value;
       return (
-        <div style={{
-          backgroundColor: 'white',
-          padding: '12px',
-          border: '1px solid #ccc',
-          borderRadius: '8px',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-        }}>
-          <p style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>
-            {payload[0].payload.date}
-          </p>
+        <div style={{ backgroundColor: 'white', padding: '12px', border: '1px solid #ccc', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <p style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>{payload[0].payload.date}</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: value >= 0 ? '#10b981' : '#ef4444' }}></div>
-            <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
-              Gap: {value >= 0 ? '+' : ''}{value}%
-            </span>
+            <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>Gap: {value >= 0 ? '+' : ''}{value}%</span>
           </div>
-          <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-            {value >= 0 ? `${asset2Info.symbol} ahead` : `${asset1Info.symbol} ahead`}
-          </p>
+          <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>{value >= 0 ? `${asset2Info.symbol} ahead` : `${asset1Info.symbol} ahead`}</p>
         </div>
       );
     }
@@ -281,113 +255,41 @@ function App() {
   const currentGap = gapData.length > 0 ? gapData[gapData.length - 1].diff : 0;
 
   return (
-    <div style={{ 
-      width: '100%', 
-      minHeight: '100vh', 
-      background: 'linear-gradient(to bottom right, #1f2937, #111827, #1f2937)',
-      padding: '16px'
-    }}>
+    <div style={{ width: '100%', minHeight: '100vh', background: 'linear-gradient(to bottom right, #1f2937, #111827, #1f2937)', padding: '16px' }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        <div style={{
-          backgroundColor: '#1f2937',
-          borderRadius: '12px 12px 0 0',
-          border: '1px solid #374151',
-          padding: '24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '16px'
-        }}>
+        <div style={{ backgroundColor: '#1f2937', borderRadius: '12px 12px 0 0', border: '1px solid #374151', padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', marginBottom: '4px' }}>
-              Crypto Comparison Tool
-            </h1>
+            <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', marginBottom: '4px' }}>Crypto Comparison Tool</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                % change from {timeframe} start • Live Binance data
-              </p>
-              <span style={{
-                padding: '4px 8px',
-                backgroundColor: '#10b981',
-                color: '#d1fae5',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                borderRadius: '4px'
-              }}>LIVE</span>
+              <p style={{ fontSize: '14px', color: '#9ca3af' }}>% change from {timeframe} start • Live Binance data</p>
+              <span style={{ padding: '4px 8px', backgroundColor: '#10b981', color: '#d1fae5', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px' }}>LIVE</span>
             </div>
           </div>
-          <button onClick={loadData} disabled={loading} style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '10px 20px',
-            backgroundColor: loading ? '#4b5563' : '#2563eb',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '14px',
-            fontWeight: '500',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-          }}>
+          <button onClick={loadData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: loading ? '#4b5563' : '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: loading ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '500', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
             <RefreshCw size={16} />
             <span>Refresh</span>
           </button>
         </div>
 
-        <div style={{
-          backgroundColor: '#1f2937',
-          borderLeft: '1px solid #374151',
-          borderRight: '1px solid #374151',
-          padding: '24px'
-        }}>
+        <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '24px' }}>
           {error && (
-            <div style={{
-              marginBottom: '16px',
-              backgroundColor: 'rgba(127, 29, 29, 0.5)',
-              border: '1px solid rgba(239, 68, 68, 0.5)',
-              borderRadius: '8px',
-              padding: '16px'
-            }}>
+            <div style={{ marginBottom: '16px', backgroundColor: 'rgba(127, 29, 29, 0.5)', border: '1px solid rgba(239, 68, 68, 0.5)', borderRadius: '8px', padding: '16px' }}>
               <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>⚠️ API Error</span>
               <p style={{ color: '#fecaca', fontSize: '14px' }}>{error}</p>
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
-              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
-                Asset 1
-              </label>
-              <select value={asset1} onChange={(e) => setAsset1(e.target.value)} style={{
-                width: '100%',
-                padding: '8px 16px',
-                backgroundColor: '#374151',
-                color: 'white',
-                border: '1px solid #4b5563',
-                borderRadius: '8px',
-                fontSize: '14px',
-                cursor: 'pointer'
-              }}>
+              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>Asset 1</label>
+              <select value={asset1} onChange={(e) => setAsset1(e.target.value)} style={{ width: '100%', padding: '8px 16px', backgroundColor: '#374151', color: 'white', border: '1px solid #4b5563', borderRadius: '8px', fontSize: '14px', cursor: 'pointer' }}>
                 {CRYPTO_OPTIONS.map(crypto => (
                   <option key={crypto.id} value={crypto.id}>{crypto.symbol} - {crypto.name}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
-                Asset 2
-              </label>
-              <select value={asset2} onChange={(e) => setAsset2(e.target.value)} style={{
-                width: '100%',
-                padding: '8px 16px',
-                backgroundColor: '#374151',
-                color: 'white',
-                border: '1px solid #4b5563',
-                borderRadius: '8px',
-                fontSize: '14px',
-                cursor: 'pointer'
-              }}>
+              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>Asset 2</label>
+              <select value={asset2} onChange={(e) => setAsset2(e.target.value)} style={{ width: '100%', padding: '8px 16px', backgroundColor: '#374151', color: 'white', border: '1px solid #4b5563', borderRadius: '8px', fontSize: '14px', cursor: 'pointer' }}>
                 {CRYPTO_OPTIONS.map(crypto => (
                   <option key={crypto.id} value={crypto.id}>{crypto.symbol} - {crypto.name}</option>
                 ))}
@@ -397,18 +299,8 @@ function App() {
         </div>
 
         {tradingSignal && (
-          <div style={{
-            backgroundColor: '#1f2937',
-            borderLeft: '1px solid #374151',
-            borderRight: '1px solid #374151',
-            padding: '24px'
-          }}>
-            <div style={{
-              borderRadius: '8px',
-              padding: '16px',
-              border: tradingSignal.action === 'LONG' ? '2px solid rgba(16, 185, 129, 0.5)' : '2px solid rgba(75, 85, 99, 0.5)',
-              backgroundColor: tradingSignal.action === 'LONG' ? 'rgba(6, 78, 59, 0.3)' : 'rgba(55, 65, 81, 0.3)'
-            }}>
+          <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '24px' }}>
+            <div style={{ borderRadius: '8px', padding: '16px', border: tradingSignal.action === 'LONG' ? '2px solid rgba(16, 185, 129, 0.5)' : '2px solid rgba(75, 85, 99, 0.5)', backgroundColor: tradingSignal.action === 'LONG' ? 'rgba(6, 78, 59, 0.3)' : 'rgba(55, 65, 81, 0.3)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   {tradingSignal.action === 'LONG' ? <ArrowUpCircle size={32} color="#34d399" /> : <TrendingUp size={32} color="#9ca3af" />}
@@ -421,9 +313,7 @@ function App() {
                 </div>
                 {tradingSignal.strength > 0 && (
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#34d399' }}>
-                      {tradingSignal.strength.toFixed(0)}%
-                    </div>
+                    <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#34d399' }}>{tradingSignal.strength.toFixed(0)}%</div>
                     <div style={{ fontSize: '12px', color: '#9ca3af' }}>Signal Strength</div>
                   </div>
                 )}
@@ -432,21 +322,8 @@ function App() {
           </div>
         )}
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '16px',
-          padding: '16px 24px',
-          backgroundColor: '#1f2937',
-          borderLeft: '1px solid #374151',
-          borderRight: '1px solid #374151'
-        }}>
-          <div style={{
-            background: 'linear-gradient(to bottom right, rgba(249, 115, 22, 0.2), rgba(249, 115, 22, 0.1))',
-            border: '1px solid rgba(249, 115, 22, 0.3)',
-            borderRadius: '8px',
-            padding: '16px'
-          }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', padding: '16px 24px', backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151' }}>
+          <div style={{ background: 'linear-gradient(to bottom right, rgba(249, 115, 22, 0.2), rgba(249, 115, 22, 0.1))', border: '1px solid rgba(249, 115, 22, 0.3)', borderRadius: '8px', padding: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>{asset1Info.symbol} ({timeframe})</span>
               {currentStats.asset1Change >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
@@ -462,12 +339,7 @@ function App() {
             )}
           </div>
           
-          <div style={{
-            background: 'linear-gradient(to bottom right, rgba(168, 85, 247, 0.2), rgba(168, 85, 247, 0.1))',
-            border: '1px solid rgba(168, 85, 247, 0.3)',
-            borderRadius: '8px',
-            padding: '16px'
-          }}>
+          <div style={{ background: 'linear-gradient(to bottom right, rgba(168, 85, 247, 0.2), rgba(168, 85, 247, 0.1))', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: '8px', padding: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ color: '#c084fc', fontSize: '12px', fontWeight: 'bold' }}>{asset2Info.symbol} ({timeframe})</span>
               {currentStats.asset2Change >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
@@ -483,12 +355,7 @@ function App() {
             )}
           </div>
           
-          <div style={{
-            background: 'linear-gradient(to bottom right, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1))',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            borderRadius: '8px',
-            padding: '16px'
-          }}>
+          <div style={{ background: 'linear-gradient(to bottom right, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1))', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px', padding: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold' }}>PERFORMANCE GAP</span>
               {currentGap >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
@@ -502,26 +369,12 @@ function App() {
           </div>
         </div>
 
-        <div style={{
-          backgroundColor: '#1f2937',
-          borderLeft: '1px solid #374151',
-          borderRight: '1px solid #374151',
-          padding: '12px 24px'
-        }}>
+        <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '12px 24px' }}>
           <div style={{ marginBottom: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500' }}>Timeframe:</span>
               {TIMEFRAMES.map((tf) => (
-                <button key={tf.id} onClick={() => setTimeframe(tf.id)} style={{
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  fontWeight: '500',
-                  fontSize: '13px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  backgroundColor: timeframe === tf.id ? '#2563eb' : '#374151',
-                  color: timeframe === tf.id ? 'white' : '#d1d5db'
-                }}>
+                <button key={tf.id} onClick={() => setTimeframe(tf.id)} style={{ padding: '6px 12px', borderRadius: '8px', fontWeight: '500', fontSize: '13px', border: 'none', cursor: 'pointer', backgroundColor: timeframe === tf.id ? '#2563eb' : '#374151', color: timeframe === tf.id ? 'white' : '#d1d5db' }}>
                   {tf.label}
                 </button>
               ))}
@@ -531,16 +384,7 @@ function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500' }}>Interval:</span>
               {INTERVALS.map((int) => (
-                <button key={int.id} onClick={() => setInterval(int.id)} style={{
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  fontWeight: '500',
-                  fontSize: '13px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  backgroundColor: interval === int.id ? '#7c3aed' : '#374151',
-                  color: interval === int.id ? 'white' : '#d1d5db'
-                }}>
+                <button key={int.id} onClick={() => setInterval(int.id)} style={{ padding: '6px 12px', borderRadius: '8px', fontWeight: '500', fontSize: '13px', border: 'none', cursor: 'pointer', backgroundColor: interval === int.id ? '#7c3aed' : '#374151', color: interval === int.id ? 'white' : '#d1d5db' }}>
                   {int.label}
                 </button>
               ))}
@@ -548,22 +392,11 @@ function App() {
           </div>
         </div>
 
-        {/* Price Chart */}
-        <div style={{
-          backgroundColor: '#1f2937',
-          borderLeft: '1px solid #374151',
-          borderRight: '1px solid #374151',
-          padding: '24px',
-          borderTop: '1px solid #374151'
-        }}>
-          <h3 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-            Price % Change from {timeframe} Start
-          </h3>
+        <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '24px', borderTop: '1px solid #374151' }}>
+          <h3 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>Price % Change from {timeframe} Start</h3>
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '350px' }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', color: '#d1d5db' }}>Loading...</div>
-              </div>
+              <div style={{ textAlign: 'center' }}><div style={{ fontSize: '18px', color: '#d1d5db' }}>Loading...</div></div>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={350}>
@@ -581,69 +414,41 @@ function App() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={70} stroke="#4b5563" />
                 <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} label={{ value: '% Change', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} stroke="#4b5563" />
-<Tooltip content={<PriceTooltip />} />
+                <Tooltip content={<PriceTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '15px' }} iconType="line" />
+                <Line type="monotone" dataKey="asset1Change" stroke={asset1Info.color} strokeWidth={2.5} name={asset1Info.symbol} dot={false} fill="url(#asset1Gradient)" />
+                <Line type="monotone" dataKey="asset2Change" stroke={asset2Info.color} strokeWidth={2.5} name={asset2Info.symbol} dot={false} fill="url(#asset2Gradient)" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '24px', borderTop: '1px solid #374151' }}>
+          <h3 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>Performance Gap ({asset2Info.symbol} - {asset1Info.symbol})</h3>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '350px' }}>
+              <div style={{ textAlign: 'center' }}><div style={{ fontSize: '18px', color: '#d1d5db' }}>Loading...</div></div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={gapData}>
+                <defs>
+                  <linearGradient id="gapGradientPos" x1="0" y1="0" x2="0" y2="1">
+                    <stopoffset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+<stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+</linearGradient>
+</defs>
+<CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+<XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={70} stroke="#4b5563" />
+<YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} label={{ value: 'Gap %', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} stroke="#4b5563" />
+<Tooltip content={<GapTooltip />} />
 <Legend wrapperStyle={{ paddingTop: '15px' }} iconType="line" />
-<Line type="monotone" dataKey="asset1Change" stroke={asset1Info.color} strokeWidth={2.5} name={asset1Info.symbol} dot={false} fill="url(#asset1Gradient)" />
-<Line type="monotone" dataKey="asset2Change" stroke={asset2Info.color} strokeWidth={2.5} name={asset2Info.symbol} dot={false} fill="url(#asset2Gradient)" />
+<Line type="monotone" dataKey="diff" stroke="#10b981" strokeWidth={3} name="Performance Gap" dot={false} fill="url(#gapGradientPos)" />
 </LineChart>
 </ResponsiveContainer>
 )}
 </div>
-{/* Gap Chart */}
-    <div style={{
-      backgroundColor: '#1f2937',
-      borderLeft: '1px solid #374151',
-      borderRight: '1px solid #374151',
-      padding: '24px',
-      borderTop: '1px solid #374151'
-    }}>
-      <h3 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
-        Performance Gap ({asset2Info.symbol} - {asset1Info.symbol})
-      </h3>
-      {loading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '350px' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '18px', color: '#d1d5db' }}>Loading...</div>
-          </div>
-        </div>
-      ) : (
-        <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={gapData}>
-            <defs>
-              <linearGradient id="gapGradientPos" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-              </linearGradient>
-              <linearGradient id="gapGradientNeg" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={70} stroke="#4b5563" />
-            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} label={{ value: 'Gap %', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} stroke="#4b5563" />
-            <Tooltip content={<GapTooltip />} />
-            <Legend wrapperStyle={{ paddingTop: '15px' }} iconType="line" />
-            <Line 
-              type="monotone" 
-              dataKey="diff" 
-              stroke="#10b981"
-              strokeWidth={3}
-              name="Performance Gap"
-              dot={false}
-              fill="url(#gapGradientPos)"
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      )}
-    </div>
-
-    <div style={{
-      backgroundColor: '#1f2937',
-      borderRadius: '0 0 12px 12px',
-      border: '1px solid #374151',
-      padding: '16px 24px'
-    }}>
+    <div style={{ backgroundColor: '#1f2937', borderRadius: '0 0 12px 12px', border: '1px solid #374151', padding: '16px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ color: '#9ca3af' }}>
           <span style={{ color: '#d1d5db', fontWeight: '500' }}>Strategy:</span> LONG when gap ≥ +0.5% | SHORT when gap ≤ -0.5%
