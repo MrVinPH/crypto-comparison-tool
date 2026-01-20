@@ -890,6 +890,77 @@ function App() {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     {backtestResults && (
+          <div style={{
+            backgroundColor: '#1f2937',
+            borderLeft: '1px solid #374151',
+            borderRight: '1px solid #374151',
+            padding: '24px'
+          }}>
+            <div style={{
+              borderRadius: '12px',
+              padding: '20px',
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.3)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <TrendingUp size={24} color="#34d399" />
+                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Mean Reversion Analysis</h3>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Current 24H Gap</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '#34d399' : '#f87171' }}>
+                    {priceInfo.asset1 && priceInfo.asset2 ? ((priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '+' : '') + (priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00'}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#6ee7b7', marginTop: '4px' }}>Live 24h gap</div>
+                </div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Mean Gap ({timeframe})</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#60a5fa' }}>
+                    {avgDiff}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#93c5fd', marginTop: '4px' }}>Historical average</div>
+                </div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Deviation from Mean</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: Math.abs((priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change) : 0) - parseFloat(avgDiff)) > 1 ? '#fbbf24' : '#34d399' }}>
+                    {priceInfo.asset1 && priceInfo.asset2 ? ((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)).toFixed(2) : '0.00'}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#fcd34d', marginTop: '4px' }}>Current vs average</div>
+                </div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Expected Gap Target</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#a78bfa' }}>
+                    {avgDiff}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#c4b5fd', marginTop: '4px' }}>Mean reversion target</div>
+                </div>
+              </div>
+
+              <div style={{ 
+                padding: '16px',
+                backgroundColor: 'rgba(0,0,0,0.3)',
+                borderRadius: '8px',
+                borderLeft: '3px solid #34d399'
+              }}>
+                <div style={{ fontSize: '14px', color: '#d1d5db', lineHeight: '1.6' }}>
+                  <strong style={{ color: '#34d399' }}>📊 Mean Reversion Theory:</strong> The gap between {asset1Info.symbol} and {asset2Info.symbol} tends to revert to its historical average of <strong>{avgDiff}%</strong>. 
+                  {priceInfo.asset1 && priceInfo.asset2 && Math.abs((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)) > 1 ? (
+                    <span style={{ color: '#fbbf24' }}> Current gap is <strong>{Math.abs((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)).toFixed(2)}%</strong> away from the mean, suggesting {(priceInfo.asset2.change - priceInfo.asset1.change) > parseFloat(avgDiff) ? `${asset1Info.symbol} should catch up (LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol})` : `${asset2Info.symbol} should catch up (LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol})`}.</span>
+                  ) : (
+                    <span style={{ color: '#34d399' }}> The gap is currently close to the historical average, indicating balanced performance.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {backtestResults && (
                       <>
                         <div style={{ 
                           fontSize: '24px', 
