@@ -104,9 +104,6 @@ function App() {
       const chartData = [];
       const minLength = Math.min(data1.length, data2.length);
       
-      const startPrice1 = parseFloat(data1[0][4]);
-      const startPrice2 = parseFloat(data2[0][4]);
-      
       const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
       const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
       
