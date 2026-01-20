@@ -598,11 +598,7 @@ function App() {
                     } />
                     <div>
                       <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'white' }}>
-                        {algoAnalysis.prediction.action === 'LONG' 
-                          ? `LONG ${algoAnalysis.prediction.targetAsset}` 
-                          : algoAnalysis.prediction.action === 'SHORT'
-                          ? `SHORT ${algoAnalysis.prediction.targetAsset}`
-                          : algoAnalysis.prediction.action}
+                        BUY {algoAnalysis.prediction.safeAsset}
                       </div>
                       <div style={{ fontSize: '16px', color: '#d1d5db', marginTop: '4px' }}>
                         AI Confidence: {algoAnalysis.prediction.confidence}%
