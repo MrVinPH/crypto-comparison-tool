@@ -212,28 +212,6 @@ function App() {
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
     const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     
-    let longScore = 0;
-    let shortScore = 0;
-    
-    patterns.forEach(pattern => {
-      const weight = pattern.strength / 100;
-      if (pattern.direction === 'LONG') {
-        longScore += weight * 20;
-      } else if (pattern.direction === 'SHORT') {
-        shortScore += weight * 20;
-      }
-    });
-    
-    const reliabilityMultiplier = parseFloat(backtestResults.winRate) / 100;
-    longScore *= reliabilityMultiplier;
-    shortScore *= reliabilityMultiplier;
-    
-    if (lastDiff > mean + 0.5) {
-      shortScore += 15;
-    } else if (lastDiff < mean - 0.5) {
-      longScore += 15;
-    }
-    
     // DYNAMIC THRESHOLD CALCULATION based on backtest performance
     const avgWin = parseFloat(backtestResults.avgWin);
     const avgLoss = parseFloat(backtestResults.avgLoss);
