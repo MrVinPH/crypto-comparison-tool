@@ -199,54 +199,6 @@ function App() {
     };
   };
 
-  function generatePrediction(chartData, patterns, backtestResults, asset1Info, asset2Info) {
-    if (chartData.length === 0 || patterns.length === 0 || !backtestResults) {
-      return null;
-    }
-    
-    const lastDiff = chartData[chartData.length - 1].diff;
-    const diffs = [];
-    for (let i = 0; i < chartData.length; i++) {
-      diffs.push(chartData[i].diff);
-    }
-    
-    let sum = 0;
-    for (let i = 0; i < diffs.length; i++) {
-      sum = sum + diffs[i];
-    }
-    const mean = sum / diffs.length;
-    
-    let varianceSum = 0;
-    for (let i = 0; i < diffs.length; i++) {
-      const diff = diffs[i] - mean;
-      varianceSum = varianceSum + (diff * diff);
-    }
-    const variance = varianceSum / diffs.length;
-    const stdDev = Math.sqrt(variance);
-    
-    let longScore = 0;
-    let shortScore = 0;
-    
-    for (let i = 0; i < patterns.length; i++) {
-      const pattern = patterns[i];
-      const weight = pattern.strength / 100;
-      if (pattern.direction === 'LONG') {
-        longScore = longScore + (weight * 20);
-      } else if (pattern.direction === 'SHORT') {
-        shortScore = shortScore + (weight * 20);
-      }
-    }
-    
-    const reliabilityMultiplier = parseFloat(backtestResults.winRate) / 100;
-    longScore = longScore * reliabilityMultiplier;
-    shortScore = shortScore * reliabilityMultiplier;
-    
-    if (lastDiff > mean + 0.5) {
-      shortScore = shortScore + 15;
-    } else if (lastDiff < mean - 0.5) {
-      longScore = longScore + 15;
-    }
-    
   const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info) => {
     if (!chartData.length || !patterns.length || !backtestResults) return null;
     
@@ -278,20 +230,18 @@ function App() {
     }
     
     // DYNAMIC THRESHOLD CALCULATION based on backtest performance
-    // Calculate if this strategy is actually profitable after fees
     const avgWin = parseFloat(backtestResults.avgWin);
     const avgLoss = parseFloat(backtestResults.avgLoss);
     const winRate = parseFloat(backtestResults.winRate) / 100;
     const profitFactor = parseFloat(backtestResults.profitFactor);
     
-    // Assume 0.15% total fees per pairs trade (0.05% × 2 positions × 1.5 for funding)
+    // Assume 0.15% total fees per pairs trade
     const feePerTrade = 0.15;
     
     // Expected value per trade
     const expectedValue = (winRate * avgWin) - ((1 - winRate) * avgLoss) - feePerTrade;
     
     // Calculate minimum gap needed for profitability
-    // Larger gaps should have better success rates
     const gapVolatilityRatio = Math.abs(lastDiff) / stdDev;
     
     // Dynamic thresholds based on actual backtest performance
@@ -320,7 +270,7 @@ function App() {
     }
     // Tier 4: Poor backtest - don't trade at all
     else {
-      minWinRate = 999; // Impossible to meet
+      minWinRate = 999;
       minProfitFactor = 999;
       minGap = 999;
       skipReason = 'losing';
@@ -366,8 +316,6 @@ function App() {
       confidence = 0;
     } else if (longScore > shortScore && longScore > 5) {
       if (lastDiff > 0) {
-        // ETH is outperforming BTC (positive gap)
-        // Pairs Trade: LONG BTC + SHORT ETH (gap should close, BTC catches up)
         action = 'PAIRS';
         targetAsset = asset1Info.symbol;
         perpetualAction = `PAIRS TRADE`;
@@ -384,8 +332,6 @@ function App() {
           expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
         };
       } else {
-        // BTC is outperforming ETH (negative gap)
-        // Pairs Trade: LONG ETH + SHORT BTC (gap should close, ETH catches up)
         action = 'PAIRS';
         targetAsset = asset2Info.symbol;
         perpetualAction = `PAIRS TRADE`;
@@ -507,47 +453,6 @@ function App() {
       stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
       takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.5).toFixed(2)}%`;
     }
-    } else {
-      if (Math.abs(lastDiff) < 0.5) {
-        if (lastDiff >= 0) {
-          action = 'LONG';
-          targetAsset = asset1Info.symbol;
-          perpetualAction = `LONG ${asset1Info.symbol}`;
-          reasoning = `Minimal gap detected. ${asset1Info.symbol} slightly lagging.`;
-          strategy = `WEAK SIGNAL: Consider small LONG position in ${asset1Info.symbol} perpetual.`;
-          entryPrice = `Small long ${asset1Info.symbol}`;
-          confidence = 25;
-        } else {
-          action = 'LONG';
-          targetAsset = asset2Info.symbol;
-          perpetualAction = `LONG ${asset2Info.symbol}`;
-          reasoning = `Minimal gap detected. ${asset2Info.symbol} slightly lagging.`;
-          strategy = `WEAK SIGNAL: Consider small LONG position in ${asset2Info.symbol} perpetual.`;
-          entryPrice = `Small long ${asset2Info.symbol}`;
-          confidence = 25;
-        }
-      } else {
-        if (lastDiff > 0) {
-          action = 'LONG';
-          targetAsset = asset1Info.symbol;
-          perpetualAction = `LONG ${asset1Info.symbol}`;
-          reasoning = `${asset1Info.symbol} underperforming. Potential value opportunity.`;
-          strategy = `MODERATE SIGNAL: LONG ${asset1Info.symbol} perpetual for mean reversion play.`;
-          entryPrice = `Long ${asset1Info.symbol} now`;
-          confidence = Math.max(longScore, shortScore, 30);
-        } else {
-          action = 'LONG';
-          targetAsset = asset2Info.symbol;
-          perpetualAction = `LONG ${asset2Info.symbol}`;
-          reasoning = `${asset2Info.symbol} underperforming. Potential value opportunity.`;
-          strategy = `MODERATE SIGNAL: LONG ${asset2Info.symbol} perpetual for mean reversion play.`;
-          entryPrice = `Long ${asset2Info.symbol} now`;
-          confidence = Math.max(longScore, shortScore, 30);
-        }
-      }
-      stopLoss = `Stop loss: ${(stdDev * 1.5).toFixed(2)}% from entry`;
-      takeProfit = `Take profit: ${(Math.abs(lastDiff - mean) * 0.5).toFixed(2)}% gain`;
-    }
     
     const volatility = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     const riskLevel = volatility > 2 ? 'HIGH' : volatility > 1 ? 'MEDIUM' : 'LOW';
@@ -590,7 +495,7 @@ function App() {
                    interval === '15m' || interval === '30m' ? 'Short (Hours)' :
                    interval === '1h' || interval === '2h' || interval === '4h' ? 'Medium (Hours-Days)' : 'Long (Days-Weeks)'
     };
-  }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -1085,7 +990,63 @@ function App() {
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    {backtestResults && (!algoAnalysis?.prediction || algoAnalysis.prediction.action === 'SKIP') && (
+                    {backtestResults && (
+                      <>
+                        <div style={{ 
+                          fontSize: '24px', 
+                          fontWeight: 'bold', 
+                          color: parseFloat(backtestResults.winRate) >= 60 ? '#34d399' : parseFloat(backtestResults.winRate) >= 50 ? '#fbbf24' : '#f87171'
+                        }}>
+                          {backtestResults.winRate}%
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#9ca3af' }}>Win Rate</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                {parseFloat(algoAnalysis.prediction.confidence) < 40 && (
+                  <div style={{ 
+                    marginTop: '12px', 
+                    padding: '12px', 
+                    backgroundColor: 'rgba(0,0,0,0.3)', 
+                    borderRadius: '6px',
+                    borderLeft: parseFloat(algoAnalysis.prediction.confidence) < 20 ? '3px solid #ef4444' : '3px solid #f59e0b'
+                  }}>
+                    <div style={{ fontSize: '13px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '4px' }}>
+                      ⚠️ TRADING WARNING
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
+                      {parseFloat(algoAnalysis.prediction.confidence) < 20 
+                        ? `This signal has very low confidence (${algoAnalysis.prediction.confidence}%). High risk of loss. Recommended action: SKIP this trade and wait for confidence above 40%.`
+                        : `This signal has low confidence (${algoAnalysis.prediction.confidence}%). Only consider if you have high risk tolerance. Use 1-2% position size maximum.`
+                      }
+                    </div>
+                  </div>
+                )}
+                
+                {backtestResults && parseFloat(backtestResults.winRate) < 55 && (
+                  <div style={{ 
+                    marginTop: '12px', 
+                    padding: '12px', 
+                    backgroundColor: 'rgba(0,0,0,0.3)', 
+                    borderRadius: '6px',
+                    borderLeft: '3px solid #ef4444'
+                  }}>
+                    <div style={{ fontSize: '13px', color: '#f87171', fontWeight: 'bold', marginBottom: '4px' }}>
+                      📉 POOR BACKTEST PERFORMANCE
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
+                      Historical win rate of {backtestResults.winRate}% is below profitable threshold (need 55%+). This strategy has lost money in backtesting. Profit Factor: {backtestResults.profitFactor} (need 1.5+).
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {backtestResults && (!algoAnalysis?.prediction || algoAnalysis.prediction.action === 'SKIP') && (
           <div style={{
             backgroundColor: '#1f2937',
             borderLeft: '1px solid #374151',
@@ -1176,62 +1137,6 @@ function App() {
               </div>
             </div>
           </div>
-        )}
-
-        {backtestResults && (
-                      <>
-                        <div style={{ 
-                          fontSize: '24px', 
-                          fontWeight: 'bold', 
-                          color: parseFloat(backtestResults.winRate) >= 60 ? '#34d399' : parseFloat(backtestResults.winRate) >= 50 ? '#fbbf24' : '#f87171'
-                        }}>
-                          {backtestResults.winRate}%
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#9ca3af' }}>Win Rate</div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                
-                {parseFloat(algoAnalysis.prediction.confidence) < 40 && (
-                  <div style={{ 
-                    marginTop: '12px', 
-                    padding: '12px', 
-                    backgroundColor: 'rgba(0,0,0,0.3)', 
-                    borderRadius: '6px',
-                    borderLeft: parseFloat(algoAnalysis.prediction.confidence) < 20 ? '3px solid #ef4444' : '3px solid #f59e0b'
-                  }}>
-                    <div style={{ fontSize: '13px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '4px' }}>
-                      ⚠️ TRADING WARNING
-                    </div>
-                    <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
-                      {parseFloat(algoAnalysis.prediction.confidence) < 20 
-                        ? `This signal has very low confidence (${algoAnalysis.prediction.confidence}%). High risk of loss. Recommended action: SKIP this trade and wait for confidence above 40%.`
-                        : `This signal has low confidence (${algoAnalysis.prediction.confidence}%). Only consider if you have high risk tolerance. Use 1-2% position size maximum.`
-                      }
-                    </div>
-                  </div>
-                )}
-                
-                {backtestResults && parseFloat(backtestResults.winRate) < 55 && (
-                  <div style={{ 
-                    marginTop: '12px', 
-                    padding: '12px', 
-                    backgroundColor: 'rgba(0,0,0,0.3)', 
-                    borderRadius: '6px',
-                    borderLeft: '3px solid #ef4444'
-                  }}>
-                    <div style={{ fontSize: '13px', color: '#f87171', fontWeight: 'bold', marginBottom: '4px' }}>
-                      📉 POOR BACKTEST PERFORMANCE
-                    </div>
-                    <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
-                      Historical win rate of {backtestResults.winRate}% is below profitable threshold (need 55%+). This strategy has lost money in backtesting. Profit Factor: {backtestResults.profitFactor} (need 1.5+).
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </>
         )}
 
         {backtestResults && (
