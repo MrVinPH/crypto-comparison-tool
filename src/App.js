@@ -104,13 +104,11 @@ function App() {
       const chartData = [];
       const minLength = Math.min(data1.length, data2.length);
       
-      const lastIndex = minLength - 1;
-      const prevIndex = minLength - 2;
+      const startPrice1 = parseFloat(data1[0][4]);
+      const startPrice2 = parseFloat(data2[0][4]);
       
-      const currentPrice1 = parseFloat(data1[lastIndex][4]);
-      const prevPrice1 = parseFloat(data1[prevIndex][4]);
-      const currentPrice2 = parseFloat(data2[lastIndex][4]);
-      const prevPrice2 = parseFloat(data2[prevIndex][4]);
+      const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
+      const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
       
       setPriceInfo({
         asset1: {
@@ -125,17 +123,20 @@ function App() {
         }
       });
       
-      for (let i = 1; i < minLength; i++) {
+      // Get starting prices (first candle in timeframe)
+      const startPrice1 = parseFloat(data1[0][4]);
+      const startPrice2 = parseFloat(data2[0][4]);
+
+      for (let i = 0; i < minLength; i++) {
         const currentClose1 = parseFloat(data1[i][4]);
-        const prevClose1 = parseFloat(data1[i - 1][4]);
         const currentClose2 = parseFloat(data2[i][4]);
-        const prevClose2 = parseFloat(data2[i - 1][4]);
         
         const timestamp = data1[i][0];
         const date = new Date(timestamp);
         
-        const dailyChange1 = ((currentClose1 - prevClose1) / prevClose1) * 100;
-        const dailyChange2 = ((currentClose2 - prevClose2) / prevClose2) * 100;
+        // Calculate % change from START of timeframe (not previous candle)
+        const dailyChange1 = ((currentClose1 - startPrice1) / startPrice1) * 100;
+        const dailyChange2 = ((currentClose2 - startPrice2) / startPrice2) * 100;
         const diff = dailyChange2 - dailyChange1;
         
         const dateFormat = limit > 90 
