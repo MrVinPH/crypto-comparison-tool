@@ -455,22 +455,22 @@ function App() {
       return (
         <div style={{
           backgroundColor: 'white',
-          padding: '12px',
+          padding: '14px',
           border: '1px solid #ccc',
           borderRadius: '8px',
           boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
         }}>
-          <p style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>
+          <p style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '10px', color: '#333' }}>
             {payload[0].payload.date}
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: asset1Info.color }}></div>
-              <span style={{ fontSize: '14px', color: '#555' }}>{asset1Info.symbol}: {payload[0].value}%</span>
+              <div style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: asset1Info.color }}></div>
+              <span style={{ fontSize: '15px', color: '#555' }}>{asset1Info.symbol}: {payload[0].value}%</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: asset2Info.color }}></div>
-              <span style={{ fontSize: '14px', color: '#555' }}>{asset2Info.symbol}: {payload[1].value}%</span>
+              <div style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: asset2Info.color }}></div>
+              <span style={{ fontSize: '15px', color: '#555' }}>{asset2Info.symbol}: {payload[1].value}%</span>
             </div>
           </div>
         </div>
@@ -484,17 +484,17 @@ function App() {
       return (
         <div style={{
           backgroundColor: 'white',
-          padding: '12px',
+          padding: '14px',
           border: '1px solid #ccc',
           borderRadius: '8px',
           boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
         }}>
-          <p style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>
+          <p style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '10px', color: '#333' }}>
             {payload[0].payload.date}
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981' }}></div>
-            <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>Gap: {payload[0].value}%</span>
+            <div style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: '#10b981' }}></div>
+            <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#333' }}>Gap: {payload[0].value}%</span>
           </div>
         </div>
       );
@@ -580,54 +580,128 @@ function App() {
               padding: '24px',
               background: algoAnalysis.prediction.action === 'LONG' 
                 ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 78, 59, 0.3) 100%)'
-                : algoAnalysis.prediction.action === 'HOLD'
-                ? 'linear-gradient(135deg, rgba(107, 114, 128, 0.2) 0%, rgba(55, 65, 81, 0.3) 100%)'
-                : 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(127, 29, 29, 0.3) 100%)',
+                : algoAnalysis.prediction.action === 'SHORT'
+                ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(127, 29, 29, 0.3) 100%)'
+                : 'linear-gradient(135deg, rgba(107, 114, 128, 0.2) 0%, rgba(55, 65, 81, 0.3) 100%)',
               border: algoAnalysis.prediction.action === 'LONG' 
                 ? '2px solid rgba(16, 185, 129, 0.5)'
-                : algoAnalysis.prediction.action === 'HOLD'
-                ? '2px solid rgba(107, 114, 128, 0.5)'
-                : '2px solid rgba(239, 68, 68, 0.5)',
+                : algoAnalysis.prediction.action === 'SHORT'
+                ? '2px solid rgba(239, 68, 68, 0.5)'
+                : '2px solid rgba(107, 114, 128, 0.5)',
             }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                    <Brain size={36} color={algoAnalysis.prediction.action === 'LONG' ? '#34d399' : algoAnalysis.prediction.action === 'HOLD' ? '#9ca3af' : '#f87171'} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                    <Brain size={40} color={
+                      algoAnalysis.prediction.action === 'LONG' ? '#34d399' : 
+                      algoAnalysis.prediction.action === 'SHORT' ? '#f87171' : '#9ca3af'
+                    } />
                     <div>
-                      <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'white' }}>
-                        {algoAnalysis.prediction.action === 'LONG' ? `LONG ${algoAnalysis.prediction.targetAsset}` : algoAnalysis.prediction.action}
+                      <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'white' }}>
+                        {algoAnalysis.prediction.action === 'LONG' 
+                          ? `LONG ${algoAnalysis.prediction.targetAsset}` 
+                          : algoAnalysis.prediction.action === 'SHORT'
+                          ? `SHORT ${algoAnalysis.prediction.targetAsset}`
+                          : algoAnalysis.prediction.action}
                       </div>
-                      <div style={{ fontSize: '14px', color: '#d1d5db', marginTop: '4px' }}>
+                      <div style={{ fontSize: '16px', color: '#d1d5db', marginTop: '4px' }}>
                         AI Confidence: {algoAnalysis.prediction.confidence}%
                       </div>
                     </div>
                   </div>
                   
-                  <div style={{ marginBottom: '16px' }}>
-                    <p style={{ color: '#e5e7eb', fontSize: '15px', lineHeight: '1.6' }}>
+                  <div style={{ 
+                    marginBottom: '20px',
+                    padding: '16px',
+                    backgroundColor: 'rgba(0,0,0,0.3)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.1)'
+                  }}>
+                    <div style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '8px', fontWeight: 'bold' }}>
+                      📊 ANALYSIS
+                    </div>
+                    <p style={{ color: '#e5e7eb', fontSize: '16px', lineHeight: '1.6', marginBottom: '0' }}>
                       {algoAnalysis.prediction.reasoning}
                     </p>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginTop: '16px' }}>
-                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Current Gap</div>
-                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fff' }}>{algoAnalysis.prediction.currentGap}%</div>
+                  <div style={{ 
+                    marginBottom: '20px',
+                    padding: '16px',
+                    backgroundColor: 'rgba(0,0,0,0.4)',
+                    borderRadius: '8px',
+                    border: '2px solid rgba(34, 197, 94, 0.3)'
+                  }}>
+                    <div style={{ fontSize: '14px', color: '#34d399', marginBottom: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '18px' }}>💡</span>
+                      TRADING STRATEGY
                     </div>
-                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Target Gap</div>
-                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#34d399' }}>{algoAnalysis.prediction.targetGap}%</div>
+                    <p style={{ color: '#e5e7eb', fontSize: '16px', lineHeight: '1.7', marginBottom: '16px' }}>
+                      {algoAnalysis.prediction.strategy}
+                    </p>
+                    
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      <div style={{ 
+                        padding: '12px',
+                        backgroundColor: 'rgba(0,0,0,0.3)',
+                        borderRadius: '6px',
+                        borderLeft: '3px solid #3b82f6'
+                      }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Entry Point</div>
+                        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fff' }}>{algoAnalysis.prediction.entryPrice}</div>
+                      </div>
+                      
+                      <div style={{ 
+                        padding: '12px',
+                        backgroundColor: 'rgba(0,0,0,0.3)',
+                        borderRadius: '6px',
+                        borderLeft: '3px solid #ef4444'
+                      }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Stop Loss</div>
+                        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#f87171' }}>{algoAnalysis.prediction.stopLoss}</div>
+                      </div>
+                      
+                      <div style={{ 
+                        padding: '12px',
+                        backgroundColor: 'rgba(0,0,0,0.3)',
+                        borderRadius: '6px',
+                        borderLeft: '3px solid #22c55e'
+                      }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Take Profit</div>
+                        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#34d399' }}>{algoAnalysis.prediction.takeProfit}</div>
+                      </div>
+                      
+                      <div style={{ 
+                        padding: '12px',
+                        backgroundColor: 'rgba(0,0,0,0.3)',
+                        borderRadius: '6px',
+                        borderLeft: '3px solid #f59e0b'
+                      }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Position Size</div>
+                        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fbbf24' }}>{algoAnalysis.prediction.positionSize}</div>
+                      </div>
                     </div>
-                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Expected Move</div>
-                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: parseFloat(algoAnalysis.prediction.expectedMove) >= 0 ? '#34d399' : '#f87171' }}>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Current Gap</div>
+                      <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#fff' }}>{algoAnalysis.prediction.currentGap}%</div>
+                    </div>
+                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Target Gap</div>
+                      <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#34d399' }}>{algoAnalysis.prediction.targetGap}%</div>
+                    </div>
+                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Expected Move</div>
+                      <div style={{ fontSize: '22px', fontWeight: 'bold', color: parseFloat(algoAnalysis.prediction.expectedMove) >= 0 ? '#34d399' : '#f87171' }}>
                         {parseFloat(algoAnalysis.prediction.expectedMove) >= 0 ? '+' : ''}{algoAnalysis.prediction.expectedMove}%
                       </div>
                     </div>
-                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Risk Level</div>
+                    <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Risk Level</div>
                       <div style={{ 
-                        fontSize: '20px', 
+                        fontSize: '22px', 
                         fontWeight: 'bold', 
                         color: algoAnalysis.prediction.riskLevel === 'HIGH' ? '#f87171' : algoAnalysis.prediction.riskLevel === 'MEDIUM' ? '#fbbf24' : '#34d399' 
                       }}>
@@ -637,14 +711,14 @@ function App() {
                   </div>
 
                   <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '8px' }}>Detected Patterns:</div>
+                    <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '8px' }}>Detected Patterns:</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                       {algoAnalysis.prediction.patterns.map((pattern, idx) => (
                         <span key={idx} style={{
-                          padding: '4px 12px',
+                          padding: '6px 14px',
                           backgroundColor: 'rgba(16, 185, 129, 0.2)',
                           color: '#6ee7b7',
-                          fontSize: '12px',
+                          fontSize: '13px',
                           fontWeight: 'bold',
                           borderRadius: '12px',
                           border: '1px solid rgba(16, 185, 129, 0.3)'
@@ -655,7 +729,7 @@ function App() {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: '12px', fontSize: '13px', color: '#9ca3af' }}>
+                  <div style={{ marginTop: '12px', fontSize: '14px', color: '#9ca3af' }}>
                     ⏱️ Time Horizon: {algoAnalysis.prediction.timeHorizon}
                   </div>
                 </div>
@@ -943,18 +1017,18 @@ function App() {
           borderRight: '1px solid #374151',
           padding: '24px'
         }}>
-          <h2 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+          <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
             Asset Performance Comparison
           </h2>
           {loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '20px', color: '#d1d5db', marginBottom: '8px' }}>Loading chart...</div>
-                <div style={{ fontSize: '14px', color: '#6b7280' }}>Please wait</div>
+                <div style={{ fontSize: '22px', color: '#d1d5db', marginBottom: '8px' }}>Loading chart...</div>
+                <div style={{ fontSize: '16px', color: '#6b7280' }}>Please wait</div>
               </div>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={400}>
+            <ResponsiveContainer width="100%" height={500}>
               <LineChart data={data}>
                 <defs>
                   <linearGradient id="asset1Gradient" x1="0" y1="0" x2="0" y2="1">
@@ -967,10 +1041,10 @@ function App() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
-                <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} label={{ value: '% Change', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} stroke="#4b5563" />
+                <XAxis dataKey="date" tick={{ fontSize: 13, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
+                <YAxis tick={{ fontSize: 13, fill: '#9ca3af' }} label={{ value: '% Change', angle: -90, position: 'insideLeft', fill: '#9ca3af', style: { fontSize: '14px' } }} stroke="#4b5563" />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="line" />
+                <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '14px' }} iconType="line" />
                 <Line type="monotone" dataKey="asset1Daily" stroke={asset1Info.color} strokeWidth={3} name={`${asset1Info.name}`} dot={false} fill="url(#asset1Gradient)" />
                 <Line type="monotone" dataKey="asset2Daily" stroke={asset2Info.color} strokeWidth={3} name={`${asset2Info.name}`} dot={false} fill="url(#asset2Gradient)" />
               </LineChart>
@@ -986,18 +1060,18 @@ function App() {
           borderRadius: '0 0 12px 12px',
           padding: '24px'
         }}>
-          <h2 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+          <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
             Price Gap Analysis
           </h2>
           {loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '20px', color: '#d1d5db', marginBottom: '8px' }}>Loading chart...</div>
-                <div style={{ fontSize: '14px', color: '#6b7280' }}>Please wait</div>
+                <div style={{ fontSize: '22px', color: '#d1d5db', marginBottom: '8px' }}>Loading chart...</div>
+                <div style={{ fontSize: '16px', color: '#6b7280' }}>Please wait</div>
               </div>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={400}>
+            <ResponsiveContainer width="100%" height={500}>
               <LineChart data={data}>
                 <defs>
                   <linearGradient id="gapGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1006,16 +1080,16 @@ function App() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
-                <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} label={{ value: 'Gap (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} stroke="#4b5563" />
+                <XAxis dataKey="date" tick={{ fontSize: 13, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
+                <YAxis tick={{ fontSize: 13, fill: '#9ca3af' }} label={{ value: 'Gap (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af', style: { fontSize: '14px' } }} stroke="#4b5563" />
                 <Tooltip content={<GapTooltip />} />
-                <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="line" />
+                <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '14px' }} iconType="line" />
                 <Line type="monotone" dataKey="diff" stroke="#10b981" strokeWidth={3} name={`Gap (${asset2Info.symbol} - ${asset1Info.symbol})`} dot={false} fill="url(#gapGradient)" />
               </LineChart>
             </ResponsiveContainer>
           )}
-          <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-            <p style={{ color: '#9ca3af', fontSize: '14px' }}>
+          <div style={{ marginTop: '16px', padding: '14px', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <p style={{ color: '#9ca3af', fontSize: '15px' }}>
               <span style={{ color: '#d1d5db', fontWeight: '500' }}>🤖 AI Strategy:</span> Machine learning pattern recognition with mean reversion backtesting
             </p>
           </div>
