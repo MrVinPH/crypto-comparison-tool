@@ -229,13 +229,17 @@ function App() {
       longScore += 15;
     }
     
-    // CRITICAL FILTER: Only generate signals when there's REAL edge
+    // PAIRS TRADING FILTERS (More lenient than directional)
+    // For pairs trading, we can accept lower thresholds because:
+    // 1. Market-neutral = lower risk
+    // 2. Profit from gap closure only
+    // 3. Hedged position protects from directional moves
     const hasStatisticalEdge = (
-      parseFloat(backtestResults.winRate) >= 60 &&  // Must win 60%+ of the time
-      parseFloat(backtestResults.profitFactor) >= 1.5  // Wins must be 1.5x bigger than losses
+      parseFloat(backtestResults.winRate) >= 55 &&  // 55%+ win rate (lower than directional)
+      parseFloat(backtestResults.profitFactor) >= 1.2  // 1.2+ profit factor (achievable for pairs)
     );
     
-    const gapIsSignificant = Math.abs(lastDiff) >= 1.0;  // Gap must be at least 1%
+    const gapIsSignificant = Math.abs(lastDiff) >= 0.6;  // 0.6%+ gap (lower threshold for pairs)
     
     let action, targetAsset, perpetualAction, confidence, reasoning, strategy, entryPrice, stopLoss, takeProfit, pairsTrade;
     
@@ -245,8 +249,8 @@ function App() {
       action = 'SKIP';
       targetAsset = 'NONE';
       perpetualAction = 'NO TRADE';
-      reasoning = `Insufficient edge. ${!hasStatisticalEdge ? `Backtest shows ${backtestResults.winRate}% win rate (need 60%+) and ${backtestResults.profitFactor} profit factor (need 1.5+).` : ''} ${!gapIsSignificant ? `Gap is only ${Math.abs(lastDiff).toFixed(2)}% (need 1%+ minimum).` : ''}`;
-      strategy = `WAIT for better setup. Do not trade until: (1) Backtest win rate ≥ 60%, (2) Profit factor ≥ 1.5, (3) Gap ≥ 1.0%. Current conditions don't meet profitability criteria.`;
+      reasoning = `Insufficient edge for pairs trade. ${!hasStatisticalEdge ? `Backtest shows ${backtestResults.winRate}% win rate (need 55%+) and ${backtestResults.profitFactor} profit factor (need 1.2+).` : ''} ${!gapIsSignificant ? `Gap is only ${Math.abs(lastDiff).toFixed(2)}% (need 0.6%+ minimum for pairs).` : ''}`;
+      strategy = `WAIT for better pairs setup. Requirements: (1) Backtest win rate ≥ 55%, (2) Profit factor ≥ 1.2, (3) Gap ≥ 0.6%. Current conditions don't meet pairs trading criteria.`;
       entryPrice = 'No entry - skip this signal';
       stopLoss = 'N/A';
       takeProfit = 'N/A';
