@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { RefreshCw, TrendingUp, TrendingDown, ArrowUpCircle, Brain, CheckCircle } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Brain, CheckCircle } from 'lucide-react';
 
 const CRYPTO_OPTIONS = [
   { id: 'BTCUSDT', symbol: 'BTC', name: 'Bitcoin', color: '#f7931a' },
@@ -27,15 +27,9 @@ function App() {
   const [asset1, setAsset1] = useState('BTCUSDT');
   const [asset2, setAsset2] = useState('ETHUSDT');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [priceInfo, setPriceInfo] = useState({ asset1: null, asset2: null });
   const [algoAnalysis, setAlgoAnalysis] = useState(null);
   const [backtestResults, setBacktestResults] = useState(null);
-  const [manualThresholds, setManualThresholds] = useState({
-    minWinRate: 65,
-    minProfitFactor: 1.5,
-    minGap: 1.0
-  });
 
   const getAssetInfo = (assetId) => CRYPTO_OPTIONS.find(a => a.id === assetId) || CRYPTO_OPTIONS[0];
 
@@ -161,7 +155,6 @@ function App() {
     const patterns = [];
     const diffs = chartData.map(d => d.diff);
     const recentDiffs = diffs.slice(-5);
-    const trend = recentDiffs.reduce((sum, val) => sum + val, 0) / recentDiffs.length;
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
     const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     const lastDiff = diffs[diffs.length - 1];
@@ -282,12 +275,9 @@ function App() {
     const winRate = parseFloat(backtestResults.winRate) / 100;
     const profitFactor = parseFloat(backtestResults.profitFactor);
     
-    const feePerTrade = 0.15;
-    const expectedValue = (winRate * avgWin) - ((1 - winRate) * avgLoss) - feePerTrade;
-    
-    const minWinRate = manualThresholds.minWinRate;
-    const minProfitFactor = manualThresholds.minProfitFactor;
-    const minGap = manualThresholds.minGap;
+    const minWinRate = 65;
+    const minProfitFactor = 1.5;
+    const minGap = 1.0;
     
     const meetsWinRate = parseFloat(backtestResults.winRate) >= minWinRate;
     const meetsProfitFactor = profitFactor >= minProfitFactor;
@@ -507,7 +497,7 @@ function App() {
       setBacktestResults(backtest);
       
     } catch (err) {
-      setError(`Failed to load data: ${err.message}`);
+      console.error('Failed to load data:', err.message);
     } finally {
       setLoading(false);
     }
@@ -515,6 +505,7 @@ function App() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe, interval, asset1, asset2]);
 
   useEffect(() => {
@@ -528,12 +519,13 @@ function App() {
       
       setAlgoAnalysis({ patterns, prediction, marketRegime });
     }
-  }, [manualThresholds, priceInfo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priceInfo]);
   
   const asset1Info = getAssetInfo(asset1);
   const asset2Info = getAssetInfo(asset2);
 
-  const CustomTooltip = ({ active, payload }) => {
+  const currentGap = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00';
     if (active && payload && payload.length) {
       return (
         <div style={{
