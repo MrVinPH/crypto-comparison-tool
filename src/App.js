@@ -206,8 +206,8 @@ function App() {
   const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info) => {
     if (!chartData.length || !patterns.length || !backtestResults) return null;
     
-    // Use 24h gap instead of chart data gap
-    const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change) : 0;
+    // Use TIMEFRAME gap for prediction (matches displayed cards)
+const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) : 0;
     
     // Only proceed if priceInfo is available
     if (!priceInfo.asset1 || !priceInfo.asset2) return null;
