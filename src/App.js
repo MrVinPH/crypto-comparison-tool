@@ -1082,9 +1082,9 @@ function App() {
                 {/* THIS IS THE FIXED CARD - Now uses algoAnalysis.prediction.targetGap */}
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
                   <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Expected Gap Target</div>
-                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#a78bfa' }}>
-                    {algoAnalysis?.prediction?.targetGap || avgDiff}%
-                  </div>
+<div style={{ fontSize: '28px', fontWeight: 'bold', color: '#a78bfa' }}>
+  {algoAnalysis?.prediction?.targetGap || avgDiff}%
+</div>
                   <div style={{ fontSize: '12px', color: '#c4b5fd', marginTop: '4px' }}>Mean reversion target</div>
                 </div>
               </div>
