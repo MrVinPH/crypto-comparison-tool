@@ -2,8 +2,6 @@ const calculateTechnicalIndicators = (chartData) => {
     if (chartData.length < 20) return null;
     
     const diffs = chartData.map(d => d.diff);
-    const prices1 = chartData.map(d => d.asset1Daily);
-    const prices2 = chartData.map(d => d.asset2Daily);
     
     // Moving Averages for gap
     const ma20 = diffs.slice(-20).reduce((sum, val) => sum + val, 0) / 20;
@@ -91,7 +89,6 @@ const calculateTechnicalIndicators = (chartData) => {
     
     // Trend Analysis
     const shortTrend = technicals.trends.short.slope > 0 ? 'UPTREND' : 'DOWNTREND';
-    const mediumTrend = technicals.trends.medium.slope > 0 ? 'UPTREND' : 'DOWNTREND';
     const trendStrength = (Math.abs(technicals.trends.short.slope) + Math.abs(technicals.trends.medium.slope)) / 2;
     
     if (trendStrength > 0.1) {
