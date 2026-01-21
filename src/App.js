@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { RefreshCw, TrendingUp, TrendingDown, Brain, CheckCircle } from 'lucide-react';
+import { RefreshCw, TrendingUp, Brain, CheckCircle } from 'lucide-react';
 
 const CRYPTO_OPTIONS = [
   { id: 'BTCUSDT', symbol: 'BTC', name: 'Bitcoin', color: '#f7931a' },
@@ -206,12 +206,13 @@ export default function App() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { loadData(); }, [timeframe, interval, asset1, asset2]);
+  useEffect(() => { loadData(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeframe, interval, asset1, asset2]);
   useEffect(() => {
     if (data.length && backtestResults && priceInfo.asset1) {
       const pred = generatePrediction(data, backtestResults, trendAnalysis);
       setAlgoAnalysis({ prediction: pred });
-    }
+    } // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thresholds]);
 
   const getTrendColor = (t) => t?.includes('STRONG_UP') ? '#22c55e' : t?.includes('UP') ? '#4ade80' : t?.includes('STRONG_DOWN') ? '#ef4444' : t?.includes('DOWN') ? '#f87171' : '#9ca3af';
