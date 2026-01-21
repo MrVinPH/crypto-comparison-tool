@@ -203,7 +203,6 @@ function App() {
       recentTrades: trades.slice(-10)
     };
   };
-
   const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info) => {
     if (!chartData.length || !patterns.length || !backtestResults) return null;
     
@@ -436,7 +435,6 @@ function App() {
           changeTimeframe: changeTimeframe2
         }
       });
-      
       const startPrice1 = parseFloat(data1[0][4]);
       const startPrice2 = parseFloat(data2[0][4]);
 
@@ -652,7 +650,7 @@ function App() {
                   ? '2px solid rgba(239, 68, 68, 0.5)'
                   : '2px solid rgba(107, 114, 128, 0.5)',
               }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                       <Brain size={40} color={
@@ -851,7 +849,6 @@ function App() {
                 </div>
               </div>
             </div>
-
             <div style={{
               backgroundColor: '#1f2937',
               borderLeft: '1px solid #374151',
@@ -1052,3 +1049,542 @@ function App() {
             </div>
           </div>
         )}
+
+        {backtestResults && (
+          <div style={{
+            backgroundColor: '#1f2937',
+            borderLeft: '1px solid #374151',
+            borderRight: '1px solid #374151',
+            padding: '24px'
+          }}>
+            <div style={{
+              borderRadius: '12px',
+              padding: '20px',
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.3)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <TrendingUp size={24} color="#34d399" />
+                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Mean Reversion Analysis</h3>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Current 24H Gap</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '#34d399' : '#f87171' }}>
+                    {priceInfo.asset1 && priceInfo.asset2 ? ((priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '+' : '') + (priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00'}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#6ee7b7', marginTop: '4px' }}>Live 24h gap</div>
+                </div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Mean Gap ({timeframe})</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#60a5fa' }}>
+                    {avgDiff}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#93c5fd', marginTop: '4px' }}>Historical average</div>
+                </div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Deviation from Mean</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: Math.abs((priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change) : 0) - parseFloat(avgDiff)) > 1 ? '#fbbf24' : '#34d399' }}>
+                    {priceInfo.asset1 && priceInfo.asset2 ? ((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)).toFixed(2) : '0.00'}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#fcd34d', marginTop: '4px' }}>Current vs average</div>
+                </div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Expected Gap Target</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#a78bfa' }}>
+                    {avgDiff}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#c4b5fd', marginTop: '4px' }}>Mean reversion target</div>
+                </div>
+              </div>
+
+              <div style={{ 
+                padding: '16px',
+                backgroundColor: 'rgba(0,0,0,0.3)',
+                borderRadius: '8px',
+                borderLeft: '3px solid #34d399'
+              }}>
+                <div style={{ fontSize: '14px', color: '#d1d5db', lineHeight: '1.6' }}>
+                  <strong style={{ color: '#34d399' }}>📊 Mean Reversion Theory:</strong> The gap between {asset1Info.symbol} and {asset2Info.symbol} tends to revert to its historical average of <strong>{avgDiff}%</strong>. 
+                  {priceInfo.asset1 && priceInfo.asset2 && Math.abs((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)) > 1 ? (
+                    <span style={{ color: '#fbbf24' }}> Current gap is <strong>{Math.abs((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)).toFixed(2)}%</strong> away from the mean, suggesting {(priceInfo.asset2.change - priceInfo.asset1.change) > parseFloat(avgDiff) ? `${asset1Info.symbol} should catch up (LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol})` : `${asset2Info.symbol} should catch up (LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol})`}.</span>
+                  ) : (
+                    <span style={{ color: '#34d399' }}> The gap is currently close to the historical average, indicating balanced performance.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {backtestResults && (
+          <div style={{
+            backgroundColor: '#1f2937',
+            borderLeft: '1px solid #374151',
+            borderRight: '1px solid #374151',
+            padding: '24px'
+          }}>
+            <div style={{
+              borderRadius: '12px',
+              padding: '20px',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.3)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <CheckCircle size={24} color="#60a5fa" />
+                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Backtest Performance</h3>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Win Rate</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: parseFloat(backtestResults.winRate) >= 60 ? '#34d399' : parseFloat(backtestResults.winRate) >= 50 ? '#fbbf24' : '#f87171' }}>
+                    {backtestResults.winRate}%
+                  </div>
+                </div>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Total Trades</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>{backtestResults.totalTrades}</div>
+                </div>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Wins / Losses</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>{backtestResults.wins} / {backtestResults.losses}</div>
+                </div>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Profit Factor</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: parseFloat(backtestResults.profitFactor) >= 1.5 ? '#34d399' : parseFloat(backtestResults.profitFactor) >= 1 ? '#fbbf24' : '#f87171' }}>
+                    {backtestResults.profitFactor}
+                  </div>
+                </div>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Avg Win</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#34d399' }}>+{backtestResults.avgWin}%</div>
+                </div>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Avg Loss</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f87171' }}>-{backtestResults.avgLoss}%</div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
+                <div style={{ fontSize: '13px', color: '#d1d5db' }}>
+                  📊 Strategy: Mean Reversion with 1.2σ threshold | Tested on {backtestResults.totalTrades} historical signals
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          padding: '24px'
+        }}>
+          <h3 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+            🎯 Manual Threshold Settings
+          </h3>
+          <div style={{ 
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '8px',
+            padding: '20px'
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                  Minimum Win Rate (%)
+                </label>
+                <input 
+                  type="number" 
+                  value={manualThresholds.minWinRate}
+                  onChange={(e) => setManualThresholds({...manualThresholds, minWinRate: parseFloat(e.target.value) || 0})}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    backgroundColor: '#374151',
+                    color: 'white',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    fontSize: '16px'
+                  }}
+                  min="0"
+                  max="100"
+                  step="1"
+                />
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  Current backtest: {backtestResults?.winRate}%
+                </div>
+              </div>
+              
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                  Minimum Profit Factor
+                </label>
+                <input 
+                  type="number" 
+                  value={manualThresholds.minProfitFactor}
+                  onChange={(e) => setManualThresholds({...manualThresholds, minProfitFactor: parseFloat(e.target.value) || 0})}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    backgroundColor: '#374151',
+                    color: 'white',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    fontSize: '16px'
+                  }}
+                  min="0"
+                  max="10"
+                  step="0.1"
+                />
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  Current backtest: {backtestResults?.profitFactor}
+                </div>
+              </div>
+              
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                  Minimum Gap (%)
+                </label>
+                <input 
+                  type="number" 
+                  value={manualThresholds.minGap}
+                  onChange={(e) => setManualThresholds({...manualThresholds, minGap: parseFloat(e.target.value) || 0})}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    backgroundColor: '#374151',
+                    color: 'white',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    fontSize: '16px'
+                  }}
+                  min="0"
+                  max="10"
+                  step="0.1"
+                />
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  Current gap: {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}%
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ 
+              marginTop: '16px',
+              padding: '12px',
+              backgroundColor: 'rgba(59, 130, 246, 0.15)',
+              borderRadius: '8px',
+              borderLeft: '3px solid #3b82f6'
+            }}>
+              <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
+                💡 <strong>TIP:</strong> Trade signal will be generated if ANY ONE threshold is met (not all required). Start conservative (65% win rate, 1.5 profit factor, 1.0% gap) and adjust based on your live trading results.
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div style={{
+              marginTop: '16px',
+              backgroundColor: 'rgba(127, 29, 29, 0.5)',
+              border: '1px solid rgba(239, 68, 68, 0.5)',
+              borderRadius: '8px',
+              padding: '16px'
+            }}>
+              <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>⚠️ API Error</span>
+              <p style={{ color: '#fecaca', fontSize: '14px' }}>{error}</p>
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '16px' }}>
+            <div>
+              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                Asset 1
+              </label>
+              <select value={asset1} onChange={(e) => setAsset1(e.target.value)} style={{
+                width: '100%',
+                padding: '8px 16px',
+                backgroundColor: '#374151',
+                color: 'white',
+                border: '1px solid #4b5563',
+                borderRadius: '8px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}>
+                {CRYPTO_OPTIONS.map(crypto => (
+                  <option key={crypto.id} value={crypto.id}>{crypto.symbol} - {crypto.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                Asset 2
+              </label>
+              <select value={asset2} onChange={(e) => setAsset2(e.target.value)} style={{
+                width: '100%',
+                padding: '8px 16px',
+                backgroundColor: '#374151',
+                color: 'white',
+                border: '1px solid #4b5563',
+                borderRadius: '8px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}>
+                {CRYPTO_OPTIONS.map(crypto => (
+                  <option key={crypto.id} value={crypto.id}>{crypto.symbol} - {crypto.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                Interval
+              </label>
+              <select value={interval} onChange={(e) => setInterval(e.target.value)} style={{
+                width: '100%',
+                padding: '8px 16px',
+                backgroundColor: '#374151',
+                color: 'white',
+                border: '1px solid #4b5563',
+                borderRadius: '8px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}>
+                {INTERVAL_OPTIONS.map(int => (
+                  <option key={int.value} value={int.value}>{int.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+          gap: '16px',
+          padding: '16px 24px',
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151'
+        }}>
+          <div style={{
+            background: 'linear-gradient(to bottom right, rgba(249, 115, 22, 0.2), rgba(249, 115, 22, 0.1))',
+            border: '1px solid rgba(249, 115, 22, 0.3)',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>{asset1Info.symbol} {timeframe} CHANGE</span>
+              {priceInfo.asset1 && priceInfo.asset1.changeTimeframe >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset1 && priceInfo.asset1.changeTimeframe >= 0 ? '#34d399' : '#f87171' }}>
+              {priceInfo.asset1 && (priceInfo.asset1.changeTimeframe >= 0 ? '+' : '')}{priceInfo.asset1?.changeTimeframe.toFixed(2)}%
+            </div>
+            {priceInfo.asset1 && (
+              <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <span>Current:</span>
+                  <span>${priceInfo.asset1.current.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span>Start ({timeframe}):</span>
+                  <span>${priceInfo.asset1.startPrice.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid rgba(156, 163, 175, 0.2)' }}>
+                  <span style={{ fontWeight: '500' }}>24h Change:</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    color: priceInfo.asset1.change >= 0 ? '#34d399' : '#f87171'
+                  }}>
+                    {priceInfo.asset1.change >= 0 ? '+' : ''}{priceInfo.asset1.change.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            )}
+            <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg: {avgAsset1}%</div>
+          </div>
+          
+          <div style={{
+            background: 'linear-gradient(to bottom right, rgba(168, 85, 247, 0.2), rgba(168, 85, 247, 0.1))',
+            border: '1px solid rgba(168, 85, 247, 0.3)',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ color: '#c084fc', fontSize: '12px', fontWeight: 'bold' }}>{asset2Info.symbol} {timeframe} CHANGE</span>
+              {priceInfo.asset2 && priceInfo.asset2.changeTimeframe >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset2 && priceInfo.asset2.changeTimeframe >= 0 ? '#34d399' : '#f87171' }}>
+              {priceInfo.asset2 && (priceInfo.asset2.changeTimeframe >= 0 ? '+' : '')}{priceInfo.asset2?.changeTimeframe.toFixed(2)}%
+            </div>
+            {priceInfo.asset2 && (
+              <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <span>Current:</span>
+                  <span>${priceInfo.asset2.current.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span>Start ({timeframe}):</span>
+                  <span>${priceInfo.asset2.startPrice.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid rgba(156, 163, 175, 0.2)' }}>
+                  <span style={{ fontWeight: '500' }}>24h Change:</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    color: priceInfo.asset2.change >= 0 ? '#34d399' : '#f87171'
+                  }}>
+                    {priceInfo.asset2.change >= 0 ? '+' : ''}{priceInfo.asset2.change.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            )}
+            <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg: {avgAsset2}%</div>
+          </div>
+          
+          <div style={{
+            background: 'linear-gradient(to bottom right, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1))',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold' }}>{timeframe} PRICE GAP</span>
+              {priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) >= 0 ? '#34d399' : '#f87171' }}>
+              {priceInfo.asset1 && priceInfo.asset2 && ((priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) >= 0 ? '+' : '')}{priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe).toFixed(2) : '0.00'}%
+            </div>
+            <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
+              {asset2Info.symbol} {priceInfo.asset2?.changeTimeframe.toFixed(2)}% vs {asset1Info.symbol} {priceInfo.asset1?.changeTimeframe.toFixed(2)}%
+            </div>
+            <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(156, 163, 175, 0.2)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: '500' }}>24h Gap:</span>
+                <span style={{ 
+                  fontWeight: 'bold',
+                  color: priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '#34d399' : '#f87171'
+                }}>
+                  {priceInfo.asset1 && priceInfo.asset2 && ((priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '+' : '')}{priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00'}%
+                </span>
+              </div>
+            </div>
+            <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg Gap: {avgDiff}%</div>
+          </div>
+        </div>
+
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          padding: '12px 24px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginRight: '8px' }}>Timeframe:</span>
+            {['1D', '7D', '1M', '3M', '6M', '1Y', 'YTD'].map((tf) => (
+              <button key={tf} onClick={() => setTimeframe(tf)} style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontWeight: '500',
+                fontSize: '14px',
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor: timeframe === tf ? '#2563eb' : '#374151',
+                color: timeframe === tf ? 'white' : '#d1d5db',
+                boxShadow: timeframe === tf ? '0 4px 6px rgba(0,0,0,0.1)' : 'none'
+              }}>
+                {tf}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          padding: '24px'
+        }}>
+          <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Asset Performance Comparison
+          </h2>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '22px', color: '#d1d5db', marginBottom: '8px' }}>Loading chart...</div>
+                <div style={{ fontSize: '16px', color: '#6b7280' }}>Please wait</div>
+              </div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={500}>
+              <LineChart data={data}>
+                <defs>
+                  <linearGradient id="asset1Gradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={asset1Info.color} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={asset1Info.color} stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="asset2Gradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={asset2Info.color} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={asset2Info.color} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="date" tick={{ fontSize: 13, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
+                <YAxis tick={{ fontSize: 13, fill: '#9ca3af' }} label={{ value: '% Change', angle: -90, position: 'insideLeft', fill: '#9ca3af', style: { fontSize: '14px' } }} stroke="#4b5563" />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '14px' }} iconType="line" />
+                <Line type="monotone" dataKey="asset1Daily" stroke={asset1Info.color} strokeWidth={3} name={`${asset1Info.name}`} dot={false} fill="url(#asset1Gradient)" />
+                <Line type="monotone" dataKey="asset2Daily" stroke={asset2Info.color} strokeWidth={3} name={`${asset2Info.name}`} dot={false} fill="url(#asset2Gradient)" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          borderBottom: '1px solid #374151',
+          borderRadius: '0 0 12px 12px',
+          padding: '24px'
+        }}>
+          <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Price Gap Analysis
+          </h2>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '22px', color: '#d1d5db', marginBottom: '8px' }}>Loading chart...</div>
+                <div style={{ fontSize: '16px', color: '#6b7280' }}>Please wait</div>
+              </div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={500}>
+              <LineChart data={data}>
+                <defs>
+                  <linearGradient id="gapGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="date" tick={{ fontSize: 13, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
+                <YAxis tick={{ fontSize: 13, fill: '#9ca3af' }} label={{ value: 'Gap (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af', style: { fontSize: '14px' } }} stroke="#4b5563" />
+                <Tooltip content={<GapTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '14px' }} iconType="line" />
+                <Line type="monotone" dataKey="diff" stroke="#10b981" strokeWidth={3} name={`Gap (${asset2Info.symbol} - ${asset1Info.symbol})`} dot={false} fill="url(#gapGradient)" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+          <div style={{ marginTop: '16px', padding: '14px', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <p style={{ color: '#9ca3af', fontSize: '15px' }}>
+              <span style={{ color: '#d1d5db', fontWeight: '500' }}>🤖 AI Strategy:</span> Machine learning pattern recognition with mean reversion backtesting
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;
