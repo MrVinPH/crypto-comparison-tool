@@ -573,13 +573,11 @@ function App() {
       const chartData = [];
       const minLength = Math.min(data1.length, data2.length);
       
-      // Get the first and current prices for the selected timeframe
       const firstPrice1 = parseFloat(data1[0][4]);
       const firstPrice2 = parseFloat(data2[0][4]);
       const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
       const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
       
-      // Fetch 24h data (1 day ago) using separate API call
       const fetchUrl1_24h = `https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=1d&limit=2`;
       const fetchUrl2_24h = `https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=1d&limit=2`;
       
@@ -591,15 +589,12 @@ function App() {
       const data1_24h = await response1_24h.json();
       const data2_24h = await response2_24h.json();
       
-      // Get previous day close (close of day before current day)
       const prevDayClose1 = data1_24h.length >= 2 ? parseFloat(data1_24h[data1_24h.length - 2][4]) : firstPrice1;
       const prevDayClose2 = data2_24h.length >= 2 ? parseFloat(data2_24h[data2_24h.length - 2][4]) : firstPrice2;
       
-      // Calculate 24h changes based on previous day close
       const change24h1 = ((currentPrice1 - prevDayClose1) / prevDayClose1) * 100;
       const change24h2 = ((currentPrice2 - prevDayClose2) / prevDayClose2) * 100;
       
-      // Calculate timeframe changes
       const changeTimeframe1 = ((currentPrice1 - firstPrice1) / firstPrice1) * 100;
       const changeTimeframe2 = ((currentPrice2 - firstPrice2) / firstPrice2) * 100;
       
