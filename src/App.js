@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { RefreshCw, TrendingUp, TrendingDown, Brain, CheckCircle } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, ArrowUpCircle, Brain, CheckCircle } from 'lucide-react';
 
 const CRYPTO_OPTIONS = [
   { id: 'BTCUSDT', symbol: 'BTC', name: 'Bitcoin', color: '#f7931a' },
@@ -9,15 +9,22 @@ const CRYPTO_OPTIONS = [
   { id: 'SOLUSDT', symbol: 'SOL', name: 'Solana', color: '#14f195' },
   { id: 'XRPUSDT', symbol: 'XRP', name: 'XRP', color: '#23292f' },
   { id: 'ADAUSDT', symbol: 'ADA', name: 'Cardano', color: '#0033ad' },
+  { id: 'AVAXUSDT', symbol: 'AVAX', name: 'Avalanche', color: '#e84142' },
+  { id: 'DOTUSDT', symbol: 'DOT', name: 'Polkadot', color: '#e6007a' },
+  { id: 'DOGEUSDT', symbol: 'DOGE', name: 'Dogecoin', color: '#c2a633' },
+  { id: 'LINKUSDT', symbol: 'LINK', name: 'Chainlink', color: '#2a5ada' },
 ];
 
 const INTERVAL_OPTIONS = [
   { value: '1m', label: '1 Minute' },
   { value: '5m', label: '5 Minutes' },
   { value: '15m', label: '15 Minutes' },
+  { value: '30m', label: '30 Minutes' },
   { value: '1h', label: '1 Hour' },
+  { value: '2h', label: '2 Hours' },
   { value: '4h', label: '4 Hours' },
   { value: '1d', label: '1 Day' },
+  { value: '1w', label: '1 Week' },
 ];
 
 function App() {
@@ -27,126 +34,34 @@ function App() {
   const [asset1, setAsset1] = useState('BTCUSDT');
   const [asset2, setAsset2] = useState('ETHUSDT');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [priceInfo, setPriceInfo] = useState({ asset1: null, asset2: null });
   const [algoAnalysis, setAlgoAnalysis] = useState(null);
   const [backtestResults, setBacktestResults] = useState(null);
+  const [manualThresholds, setManualThresholds] = useState({
+    minWinRate: 65,
+    minProfitFactor: 1.5,
+    minGap: 1.0
+  });
 
   const getAssetInfo = (assetId) => CRYPTO_OPTIONS.find(a => a.id === assetId) || CRYPTO_OPTIONS[0];
 
   const getTimeframeDetails = (tf, selectedInterval) => {
     switch(tf) {
-      case '1D': return { interval: selectedInterval, limit: 24 };
-      case '7D': return { interval: selectedInterval, limit: selectedInterval === '1d' ? 7 : 168 };
-      case '1M': return { interval: selectedInterval, limit: selectedInterval === '1d' ? 30 : 720 };
-      case '3M': return { interval: '1d', limit: 90 };
+      case '1D': return { interval: selectedInterval, limit: selectedInterval === '1h' ? 24 : selectedInterval === '2h' ? 12 : selectedInterval === '4h' ? 6 : selectedInterval === '15m' ? 96 : selectedInterval === '30m' ? 48 : selectedInterval === '1m' ? 1440 : selectedInterval === '5m' ? 288 : 24 };
+      case '7D': return { interval: selectedInterval, limit: selectedInterval === '1h' ? 168 : selectedInterval === '2h' ? 84 : selectedInterval === '4h' ? 42 : selectedInterval === '1d' ? 7 : 168 };
+      case '1M': return { interval: selectedInterval, limit: selectedInterval === '1d' ? 30 : selectedInterval === '1h' ? 720 : selectedInterval === '4h' ? 180 : 30 };
+      case '3M': return { interval: selectedInterval === '1d' || selectedInterval === '1w' ? selectedInterval : '1d', limit: selectedInterval === '1w' ? 12 : 90 };
+      case '6M': return { interval: selectedInterval === '1d' || selectedInterval === '1w' ? selectedInterval : '1d', limit: selectedInterval === '1w' ? 26 : 180 };
+      case '1Y': return { interval: selectedInterval === '1d' || selectedInterval === '1w' ? selectedInterval : '1d', limit: selectedInterval === '1w' ? 52 : 365 };
+      case 'YTD': {
+        const now = new Date();
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        const daysSinceYearStart = Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24));
+        return { interval: selectedInterval === '1d' || selectedInterval === '1w' ? selectedInterval : '1d', limit: selectedInterval === '1w' ? Math.ceil(daysSinceYearStart / 7) : daysSinceYearStart };
+      }
       default: return { interval: selectedInterval, limit: 7 };
     }
-  };
-
-  const detectMarketRegime = (chartData, priceInfoData) => {
-    if (!chartData.length || !priceInfoData.asset1 || !priceInfoData.asset2) return null;
-    
-    const recentData = chartData.slice(-10);
-    const priceChanges1 = recentData.map(d => d.asset1Daily);
-    const priceChanges2 = recentData.map(d => d.asset2Daily);
-    
-    const avgChange1 = priceChanges1.reduce((sum, val) => sum + val, 0) / priceChanges1.length;
-    const avgChange2 = priceChanges2.reduce((sum, val) => sum + val, 0) / priceChanges2.length;
-    
-    let marketTrend;
-    const combinedAvg = (avgChange1 + avgChange2) / 2;
-    
-    if (combinedAvg > 1) {
-      marketTrend = 'BULL';
-    } else if (combinedAvg < -1) {
-      marketTrend = 'BEAR';
-    } else {
-      marketTrend = 'SIDEWAYS';
-    }
-    
-    let regimeLeader;
-    const recentGaps = recentData.map(d => d.diff);
-    const gapTrend = recentGaps[recentGaps.length - 1] - recentGaps[0];
-    
-    if (marketTrend === 'BULL') {
-      regimeLeader = gapTrend > 0 ? 'ETH' : 'BTC';
-    } else if (marketTrend === 'BEAR') {
-      regimeLeader = gapTrend < 0 ? 'BTC' : 'ETH';
-    } else {
-      regimeLeader = 'NEUTRAL';
-    }
-    
-    const calculateRSI = (rsiData) => {
-      if (rsiData.length < 14) return 50;
-      const changes = [];
-      for (let i = 1; i < rsiData.length; i++) {
-        changes.push(rsiData[i] - rsiData[i-1]);
-      }
-      const gains = changes.map(c => c > 0 ? c : 0);
-      const losses = changes.map(c => c < 0 ? Math.abs(c) : 0);
-      const avgGain = gains.slice(-14).reduce((sum, val) => sum + val, 0) / 14;
-      const avgLoss = losses.slice(-14).reduce((sum, val) => sum + val, 0) / 14;
-      if (avgLoss === 0) return 100;
-      const rs = avgGain / avgLoss;
-      return 100 - (100 / (1 + rs));
-    };
-    
-    const asset1Prices = chartData.map(d => d.asset1Daily);
-    const asset2Prices = chartData.map(d => d.asset2Daily);
-    const rsi1 = calculateRSI(asset1Prices);
-    const rsi2 = calculateRSI(asset2Prices);
-    
-    let asset1Condition, asset2Condition;
-    
-    if (rsi1 < 30) asset1Condition = 'OVERSOLD';
-    else if (rsi1 > 70) asset1Condition = 'OVERBOUGHT';
-    else asset1Condition = 'NEUTRAL';
-    
-    if (rsi2 < 30) asset2Condition = 'OVERSOLD';
-    else if (rsi2 > 70) asset2Condition = 'OVERBOUGHT';
-    else asset2Condition = 'NEUTRAL';
-    
-    const allGaps = chartData.map(d => d.diff);
-    const sortedGaps = [...allGaps].sort((a, b) => a - b);
-    const q1 = sortedGaps[Math.floor(sortedGaps.length * 0.25)];
-    const q3 = sortedGaps[Math.floor(sortedGaps.length * 0.75)];
-    const currentGapValue = priceInfoData.asset2.change - priceInfoData.asset1.change;
-    
-    let supportResistance;
-    if (currentGapValue <= q1) {
-      supportResistance = 'AT_SUPPORT';
-    } else if (currentGapValue >= q3) {
-      supportResistance = 'AT_RESISTANCE';
-    } else {
-      supportResistance = 'MIDDLE_RANGE';
-    }
-    
-    const recentVol = recentData.slice(-5).map(d => Math.abs(d.diff));
-    const historicalVol = chartData.slice(0, -5).map(d => Math.abs(d.diff));
-    const avgRecentVol = recentVol.reduce((sum, val) => sum + val, 0) / recentVol.length;
-    const avgHistoricalVol = historicalVol.reduce((sum, val) => sum + val, 0) / historicalVol.length;
-    
-    let volatilityRegime;
-    if (avgRecentVol > avgHistoricalVol * 1.5) {
-      volatilityRegime = 'HIGH';
-    } else if (avgRecentVol < avgHistoricalVol * 0.7) {
-      volatilityRegime = 'LOW';
-    } else {
-      volatilityRegime = 'NORMAL';
-    }
-    
-    return {
-      marketTrend,
-      regimeLeader,
-      asset1RSI: rsi1.toFixed(1),
-      asset2RSI: rsi2.toFixed(1),
-      asset1Condition,
-      asset2Condition,
-      supportResistance,
-      volatilityRegime,
-      avgChange1: avgChange1.toFixed(2),
-      avgChange2: avgChange2.toFixed(2)
-    };
   };
 
   const detectPatterns = (chartData) => {
@@ -154,6 +69,8 @@ function App() {
     
     const patterns = [];
     const diffs = chartData.map(d => d.diff);
+    const recentDiffs = diffs.slice(-5);
+    const trend = recentDiffs.reduce((sum, val) => sum + val, 0) / recentDiffs.length;
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
     const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     const lastDiff = diffs[diffs.length - 1];
@@ -186,6 +103,18 @@ function App() {
       });
     }
     
+    const recentVolatility = recentDiffs.reduce((sum, val) => sum + Math.abs(val), 0) / recentDiffs.length;
+    const historicalVolatility = diffs.slice(0, -5).reduce((sum, val) => sum + Math.abs(val), 0) / (diffs.length - 5);
+    
+    if (recentVolatility > historicalVolatility * 1.5) {
+      patterns.push({
+        type: 'VOLATILITY_BREAKOUT',
+        strength: Math.min((recentVolatility / historicalVolatility) * 40, 100),
+        direction: trend > 0 ? 'LONG' : 'SHORT',
+        description: `Volatility increased by ${((recentVolatility / historicalVolatility - 1) * 100).toFixed(0)}%`
+      });
+    }
+    
     const sortedDiffs = [...diffs].sort((a, b) => a - b);
     const q1 = sortedDiffs[Math.floor(sortedDiffs.length * 0.25)];
     const q3 = sortedDiffs[Math.floor(sortedDiffs.length * 0.75)];
@@ -212,6 +141,7 @@ function App() {
   const runBacktest = (chartData) => {
     if (chartData.length < 20) return null;
     
+    let trades = [];
     let wins = 0;
     let losses = 0;
     let totalProfit = 0;
@@ -232,112 +162,98 @@ function App() {
         totalProfit += profitLoss;
         if (profitLoss > 0) wins++;
         else losses++;
+        trades.push({
+          entry: i,
+          signal: 'SHORT_GAP',
+          entryDiff: entryPrice,
+          exitDiff: exitPrice,
+          profitLoss: profitLoss,
+          win: profitLoss > 0
+        });
       } else if (currentDiff < mean - 1.2 * stdDev) {
         const profitLoss = exitPrice - entryPrice;
         totalProfit += profitLoss;
         if (profitLoss > 0) wins++;
         else losses++;
+        trades.push({
+          entry: i,
+          signal: 'LONG_GAP',
+          entryDiff: entryPrice,
+          exitDiff: exitPrice,
+          profitLoss: profitLoss,
+          win: profitLoss > 0
+        });
       }
     }
     
-    const totalTrades = wins + losses;
-    const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
-    const avgWin = wins > 0 ? totalProfit / wins : 0;
-    const avgLoss = losses > 0 ? Math.abs(totalProfit / losses) : 0;
+    const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
+    const avgWin = wins > 0 ? trades.filter(t => t.win).reduce((sum, t) => sum + t.profitLoss, 0) / wins : 0;
+    const avgLoss = losses > 0 ? Math.abs(trades.filter(t => !t.win).reduce((sum, t) => sum + t.profitLoss, 0) / losses) : 0;
     const profitFactor = avgLoss > 0 ? (avgWin * wins) / (avgLoss * losses) : wins > 0 ? 999 : 0;
     
     return {
-      totalTrades,
+      totalTrades: trades.length,
       wins,
       losses,
       winRate: winRate.toFixed(1),
       totalProfit: totalProfit.toFixed(2),
       avgWin: avgWin.toFixed(2),
       avgLoss: avgLoss.toFixed(2),
-      profitFactor: profitFactor.toFixed(2)
+      profitFactor: profitFactor.toFixed(2),
+      recentTrades: trades.slice(-10)
     };
   };
 
-  const generatePrediction = (chartData, patterns, backtest, a1Info, a2Info, regime) => {
-    if (!chartData.length || !patterns.length || !backtest || !regime) return null;
+  const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info) => {
+    if (!chartData.length || !patterns.length || !backtestResults) return null;
     
+    // Use 24h gap instead of chart data gap
     const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change) : 0;
     
+    // Only proceed if priceInfo is available
     if (!priceInfo.asset1 || !priceInfo.asset2) return null;
     
     const diffs = chartData.map(d => d.diff);
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
     const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     
-    const profitFactor = parseFloat(backtest.profitFactor);
+    // DYNAMIC THRESHOLD CALCULATION based on backtest performance
+    const avgWin = parseFloat(backtestResults.avgWin);
+    const avgLoss = parseFloat(backtestResults.avgLoss);
+    const winRate = parseFloat(backtestResults.winRate) / 100;
+    const profitFactor = parseFloat(backtestResults.profitFactor);
     
-    const minWinRate = 65;
-    const minProfitFactor = 1.5;
-    const minGap = 1.0;
+    // Assume 0.15% total fees per pairs trade
+    const feePerTrade = 0.15;
     
-    const meetsWinRate = parseFloat(backtest.winRate) >= minWinRate;
+    // Expected value per trade
+    const expectedValue = (winRate * avgWin) - ((1 - winRate) * avgLoss) - feePerTrade;
+    
+    // Use manual thresholds set by user
+    const minWinRate = manualThresholds.minWinRate;
+    const minProfitFactor = manualThresholds.minProfitFactor;
+    const minGap = manualThresholds.minGap;
+    
+    const meetsWinRate = parseFloat(backtestResults.winRate) >= minWinRate;
     const meetsProfitFactor = profitFactor >= minProfitFactor;
     const meetsGap = Math.abs(lastDiff) >= minGap;
+    const isProfitable = expectedValue > 0;
     
-    let regimeAdjustment = 0;
-    let regimeWarnings = [];
+    let action, targetAsset, perpetualAction, confidence, reasoning, strategy, entryPrice, stopLoss, takeProfit, pairsTrade, autoThresholds;
     
-    if (regime.marketTrend === 'BULL') {
-      if (lastDiff > 0) {
-        regimeAdjustment -= 10;
-        regimeWarnings.push('Bull market: ETH tends to outperform, current gap may persist');
-      } else {
-        regimeAdjustment += 10;
-        regimeWarnings.push('Bull market: BTC ahead is unusual, strong mean reversion expected');
-      }
-    } else if (regime.marketTrend === 'BEAR') {
-      if (lastDiff < 0) {
-        regimeAdjustment -= 10;
-        regimeWarnings.push('Bear market: BTC tends to hold better, current gap may persist');
-      } else {
-        regimeAdjustment += 10;
-        regimeWarnings.push('Bear market: ETH ahead is unusual, strong mean reversion expected');
-      }
-    }
+    autoThresholds = {
+      tier: 'MANUAL',
+      minWinRate,
+      minProfitFactor,
+      minGap,
+      expectedValue: expectedValue.toFixed(3),
+      isProfitable,
+      meetsWinRate,
+      meetsProfitFactor,
+      meetsGap
+    };
     
-    if (regime.asset1Condition === 'OVERSOLD') {
-      regimeAdjustment += 5;
-      regimeWarnings.push(`${a1Info.symbol} is oversold (RSI: ${regime.asset1RSI}), bounce likely`);
-    } else if (regime.asset1Condition === 'OVERBOUGHT') {
-      regimeAdjustment -= 5;
-      regimeWarnings.push(`${a1Info.symbol} is overbought (RSI: ${regime.asset1RSI}), pullback likely`);
-    }
-    
-    if (regime.asset2Condition === 'OVERSOLD') {
-      regimeAdjustment -= 5;
-      regimeWarnings.push(`${a2Info.symbol} is oversold (RSI: ${regime.asset2RSI}), bounce likely`);
-    } else if (regime.asset2Condition === 'OVERBOUGHT') {
-      regimeAdjustment += 5;
-      regimeWarnings.push(`${a2Info.symbol} is overbought (RSI: ${regime.asset2RSI}), pullback likely`);
-    }
-    
-    if (regime.supportResistance === 'AT_SUPPORT') {
-      if (lastDiff < 0) {
-        regimeAdjustment += 10;
-        regimeWarnings.push('Gap at historical support level, strong bounce expected');
-      }
-    } else if (regime.supportResistance === 'AT_RESISTANCE') {
-      if (lastDiff > 0) {
-        regimeAdjustment += 10;
-        regimeWarnings.push('Gap at historical resistance level, reversal likely');
-      }
-    }
-    
-    if (regime.volatilityRegime === 'HIGH') {
-      regimeAdjustment -= 15;
-      regimeWarnings.push('High volatility environment, mean reversion less reliable');
-    } else if (regime.volatilityRegime === 'LOW') {
-      regimeAdjustment += 10;
-      regimeWarnings.push('Low volatility environment, mean reversion more reliable');
-    }
-    
-    let action, targetAsset, perpetualAction, confidence, reasoning, strategy, pairsTrade;
-    
+    // Trade if ANY ONE criteria is met (OR logic instead of AND)
     const meetsAnyCriteria = meetsWinRate || meetsProfitFactor || meetsGap;
     
     if (!meetsAnyCriteria) {
@@ -346,68 +262,105 @@ function App() {
       perpetualAction = 'NO TRADE';
       
       let reasons = [];
-      if (!meetsWinRate) reasons.push(`Win rate ${backtest.winRate}% < ${minWinRate}%`);
-      if (!meetsProfitFactor) reasons.push(`Profit factor ${profitFactor.toFixed(2)} < ${minProfitFactor}`);
-      if (!meetsGap) reasons.push(`Gap ${Math.abs(lastDiff).toFixed(2)}% < ${minGap}%`);
+      if (!meetsWinRate) reasons.push(`Win rate ${backtestResults.winRate}% < ${minWinRate}% required`);
+      if (!meetsProfitFactor) reasons.push(`Profit factor ${profitFactor.toFixed(2)} < ${minProfitFactor} required`);
+      if (!meetsGap) reasons.push(`Gap ${Math.abs(lastDiff).toFixed(2)}% < ${minGap}% required`);
       
       reasoning = `No thresholds met: ${reasons.join(', ')}`;
-      strategy = `⚠️ SKIP - ${reasoning}`;
+      strategy = `⚠️ SKIP THIS TRADE - None of the manual thresholds are met. ${reasoning}. Wait for better conditions.`;
+      entryPrice = 'No entry - criteria not met';
+      stopLoss = 'N/A';
+      takeProfit = 'N/A';
       pairsTrade = null;
       confidence = 0;
     } else {
+      // At least ONE criteria is met - generate trade signal based on gap direction
       if (lastDiff > 0) {
+        // ETH is outperforming BTC (positive gap)
+        // Pairs Trade: LONG BTC + SHORT ETH (expecting BTC to catch up)
         action = 'PAIRS';
-        targetAsset = a1Info.symbol;
+        targetAsset = asset1Info.symbol;
         perpetualAction = `PAIRS TRADE`;
-        reasoning = `${a2Info.symbol} ahead by ${lastDiff.toFixed(2)}%. Mean reversion expected.`;
-        strategy = `LONG ${a1Info.symbol} + SHORT ${a2Info.symbol} (equal $ amounts)`;
+        reasoning = `${asset2Info.symbol} is ahead by ${lastDiff.toFixed(2)}%. Gap exceeds threshold (${minGap}%). Mean reversion expected - ${asset1Info.symbol} should catch up.`;
+        strategy = `PAIRS TRADE: LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol} with EQUAL $ amounts. ${asset2Info.symbol} is outperforming by ${lastDiff.toFixed(2)}%, creating opportunity for ${asset1Info.symbol} to catch up.`;
+        entryPrice = `Execute both positions simultaneously`;
+        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
+        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
         pairsTrade = {
-          long: a1Info.symbol,
-          short: a2Info.symbol,
+          long: asset1Info.symbol,
+          short: asset2Info.symbol,
           currentGap: lastDiff.toFixed(2),
+          targetGap: (lastDiff - (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
           expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
         };
-        confidence = Math.min(60 + (meetsWinRate ? 15 : 0) + (meetsProfitFactor ? 15 : 0) + (meetsGap ? 10 : 0) + regimeAdjustment, 100);
-        confidence = Math.max(confidence, 0);
+        confidence = Math.min(60 + (meetsWinRate ? 15 : 0) + (meetsProfitFactor ? 15 : 0) + (meetsGap ? 10 : 0), 100);
       } else {
+        // BTC is outperforming ETH (negative gap)
+        // Pairs Trade: LONG ETH + SHORT BTC (expecting ETH to catch up)
         action = 'PAIRS';
-        targetAsset = a2Info.symbol;
+        targetAsset = asset2Info.symbol;
         perpetualAction = `PAIRS TRADE`;
-        reasoning = `${a1Info.symbol} ahead by ${Math.abs(lastDiff).toFixed(2)}%. Mean reversion expected.`;
-        strategy = `LONG ${a2Info.symbol} + SHORT ${a1Info.symbol} (equal $ amounts)`;
+        reasoning = `${asset1Info.symbol} is ahead by ${Math.abs(lastDiff).toFixed(2)}%. Gap exceeds threshold (${minGap}%). Mean reversion expected - ${asset2Info.symbol} should catch up.`;
+        strategy = `PAIRS TRADE: LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol} with EQUAL $ amounts. ${asset1Info.symbol} is outperforming by ${Math.abs(lastDiff).toFixed(2)}%, creating opportunity for ${asset2Info.symbol} to catch up.`;
+        entryPrice = `Execute both positions simultaneously`;
+        stopLoss = `Close both if gap widens by ${(stdDev * 1.5).toFixed(2)}%`;
+        takeProfit = `Close both when gap narrows by ${(Math.abs(lastDiff - mean) * 0.6).toFixed(2)}%`;
         pairsTrade = {
-          long: a2Info.symbol,
-          short: a1Info.symbol,
+          long: asset2Info.symbol,
+          short: asset1Info.symbol,
           currentGap: lastDiff.toFixed(2),
+          targetGap: (lastDiff + (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
           expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
         };
-        confidence = Math.min(60 + (meetsWinRate ? 15 : 0) + (meetsProfitFactor ? 15 : 0) + (meetsGap ? 10 : 0) + regimeAdjustment, 100);
-        confidence = Math.max(confidence, 0);
+        confidence = Math.min(60 + (meetsWinRate ? 15 : 0) + (meetsProfitFactor ? 15 : 0) + (meetsGap ? 10 : 0), 100);
       }
     }
     
-    const volatility = stdDev;
+    const volatility = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     const riskLevel = volatility > 2 ? 'HIGH' : volatility > 1 ? 'MEDIUM' : 'LOW';
+    const expectedMove = lastDiff > mean ? -(Math.abs(lastDiff - mean) * 0.6) : Math.abs(lastDiff - mean) * 0.6;
+    const targetPrice = lastDiff + expectedMove;
     
+    let positionSize, leverage;
+    if (riskLevel === 'HIGH') {
+      positionSize = '1-2% of portfolio';
+      leverage = '2-3x leverage maximum';
+    } else if (riskLevel === 'MEDIUM') {
+      positionSize = '2-5% of portfolio';
+      leverage = '3-5x leverage recommended';
+    } else {
+      positionSize = '5-10% of portfolio';
+      leverage = '5-10x leverage possible';
+    }
     return {
-      action,
-      targetAsset,
-      perpetualAction,
-      pairsTrade,
+      action: action,
+      targetAsset: targetAsset,
+      perpetualAction: perpetualAction,
+      pairsTrade: pairsTrade,
+      autoThresholds: autoThresholds,
       confidence: confidence.toFixed(1),
-      reasoning,
-      strategy,
+      reasoning: reasoning,
+      strategy: strategy,
+      entryPrice: entryPrice,
+      stopLoss: stopLoss,
+      takeProfit: takeProfit,
+      positionSize: positionSize,
+      leverage: leverage,
       currentGap: lastDiff.toFixed(2),
-      riskLevel,
+      targetGap: targetPrice.toFixed(2),
+      expectedMove: expectedMove.toFixed(2),
+      riskLevel: riskLevel,
       volatility: volatility.toFixed(2),
-      patterns: patterns.map(p => p.type),
-      regimeAdjustment,
-      regimeWarnings
+      patterns: patterns.map(function(p) { return p.type; }),
+      timeHorizon: interval === '1m' || interval === '5m' ? 'Very Short (Minutes)' : 
+                   interval === '15m' || interval === '30m' ? 'Short (Hours)' :
+                   interval === '1h' || interval === '2h' || interval === '4h' ? 'Medium (Hours-Days)' : 'Long (Days-Weeks)'
     };
   };
 
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     
     const asset1Info = getAssetInfo(asset1);
     const asset2Info = getAssetInfo(asset2);
@@ -418,10 +371,13 @@ function App() {
       const url1 = `https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=${fetchInterval}&limit=${limit}`;
       const url2 = `https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=${fetchInterval}&limit=${limit}`;
       
-      const [response1, response2] = await Promise.all([fetch(url1), fetch(url2)]);
+      const [response1, response2] = await Promise.all([
+        fetch(url1),
+        fetch(url2)
+      ]);
 
       if (!response1.ok || !response2.ok) {
-        throw new Error('API request failed');
+        throw new Error('Binance API request failed');
       }
 
       const data1 = await response1.json();
@@ -434,26 +390,51 @@ function App() {
       const chartData = [];
       const minLength = Math.min(data1.length, data2.length);
       
+      // Get the first and current prices for the selected timeframe
+      const firstPrice1 = parseFloat(data1[0][4]);
+      const firstPrice2 = parseFloat(data2[0][4]);
       const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
       const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
       
+      // Fetch 24h data (1 day ago) using separate API call
       const fetchUrl1_24h = `https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=1d&limit=2`;
       const fetchUrl2_24h = `https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=1d&limit=2`;
       
-      const [response1_24h, response2_24h] = await Promise.all([fetch(fetchUrl1_24h), fetch(fetchUrl2_24h)]);
+      const [response1_24h, response2_24h] = await Promise.all([
+        fetch(fetchUrl1_24h),
+        fetch(fetchUrl2_24h)
+      ]);
       
       const data1_24h = await response1_24h.json();
       const data2_24h = await response2_24h.json();
       
-      const prevDayClose1 = data1_24h.length >= 2 ? parseFloat(data1_24h[data1_24h.length - 2][4]) : currentPrice1;
-      const prevDayClose2 = data2_24h.length >= 2 ? parseFloat(data2_24h[data2_24h.length - 2][4]) : currentPrice2;
+      // Get previous day close (close of day before current day)
+      const prevDayClose1 = data1_24h.length >= 2 ? parseFloat(data1_24h[data1_24h.length - 2][4]) : firstPrice1;
+      const prevDayClose2 = data2_24h.length >= 2 ? parseFloat(data2_24h[data2_24h.length - 2][4]) : firstPrice2;
       
+      // Calculate 24h changes based on previous day close
       const change24h1 = ((currentPrice1 - prevDayClose1) / prevDayClose1) * 100;
       const change24h2 = ((currentPrice2 - prevDayClose2) / prevDayClose2) * 100;
       
+      // Calculate timeframe changes
+      const changeTimeframe1 = ((currentPrice1 - firstPrice1) / firstPrice1) * 100;
+      const changeTimeframe2 = ((currentPrice2 - firstPrice2) / firstPrice2) * 100;
+      
       setPriceInfo({
-        asset1: { current: currentPrice1, previous: prevDayClose1, change: change24h1 },
-        asset2: { current: currentPrice2, previous: prevDayClose2, change: change24h2 }
+        asset1: {
+          current: currentPrice1,
+          previous: prevDayClose1,
+          startPrice: firstPrice1,
+          change: change24h1,
+          changeTimeframe: changeTimeframe1
+        },
+        asset2: {
+          current: currentPrice2,
+          previous: prevDayClose2,
+          startPrice: firstPrice2,
+          change: change24h2,
+          changeTimeframe: changeTimeframe2
+        }
       });
       
       const startPrice1 = parseFloat(data1[0][4]);
@@ -468,8 +449,14 @@ function App() {
         const changeFromStart2 = ((currentClose2 - startPrice2) / startPrice2) * 100;
         const diff = changeFromStart2 - changeFromStart1;
         
+        const dateFormat = limit > 90 
+          ? { month: 'short', day: 'numeric' }
+          : fetchInterval.includes('m') || fetchInterval.includes('h')
+          ? { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' }
+          : { month: 'short', day: 'numeric' };
+        
         chartData.push({
-          date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          date: date.toLocaleDateString('en-US', dateFormat),
           timestamp: timestamp,
           asset1Daily: parseFloat(changeFromStart1.toFixed(2)),
           asset2Daily: parseFloat(changeFromStart2.toFixed(2)),
@@ -479,20 +466,18 @@ function App() {
 
       setData(chartData);
       
-      const marketRegime = detectMarketRegime(chartData, {
-        asset1: { current: currentPrice1, previous: prevDayClose1, change: change24h1 },
-        asset2: { current: currentPrice2, previous: prevDayClose2, change: change24h2 }
-      });
-      
       const patterns = detectPatterns(chartData);
       const backtest = runBacktest(chartData);
-      const prediction = generatePrediction(chartData, patterns, backtest, asset1Info, asset2Info, marketRegime);
+      const prediction = generatePrediction(chartData, patterns, backtest, asset1Info, asset2Info);
       
-      setAlgoAnalysis({ patterns, prediction, marketRegime });
+      setAlgoAnalysis({
+        patterns,
+        prediction
+      });
       setBacktestResults(backtest);
       
     } catch (err) {
-      console.error('Failed to load data:', err.message);
+      setError(`Failed to load data: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -504,22 +489,30 @@ function App() {
   }, [timeframe, interval, asset1, asset2]);
 
   useEffect(() => {
+    // Regenerate prediction when thresholds change OR when priceInfo updates
     if (data.length > 0 && backtestResults && priceInfo.asset1 && priceInfo.asset2) {
       const asset1Info = getAssetInfo(asset1);
       const asset2Info = getAssetInfo(asset2);
-      
-      const marketRegime = detectMarketRegime(data, priceInfo);
       const patterns = detectPatterns(data);
-      const prediction = generatePrediction(data, patterns, backtestResults, asset1Info, asset2Info, marketRegime);
+      const prediction = generatePrediction(data, patterns, backtestResults, asset1Info, asset2Info);
       
-      setAlgoAnalysis({ patterns, prediction, marketRegime });
+      console.log('Generating prediction:', {
+        lastDiff: priceInfo.asset2.change - priceInfo.asset1.change,
+        minGap: manualThresholds.minGap,
+        meetsGap: Math.abs(priceInfo.asset2.change - priceInfo.asset1.change) >= manualThresholds.minGap,
+        prediction
+      });
+      
+      setAlgoAnalysis({
+        patterns,
+        prediction
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [priceInfo]);
+  }, [manualThresholds, priceInfo]);
   
   const asset1Info = getAssetInfo(asset1);
   const asset2Info = getAssetInfo(asset2);
-  const currentGap = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00';
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
@@ -550,97 +543,429 @@ function App() {
     return null;
   };
 
+  const GapTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{
+          backgroundColor: 'white',
+          padding: '14px',
+          border: '1px solid #ccc',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+        }}>
+          <p style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '10px', color: '#333' }}>
+            {payload[0].payload.date}
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: '#10b981' }}></div>
+            <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#333' }}>Gap: {payload[0].value}%</span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const avgAsset1 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset1Daily, 0) / data.length).toFixed(2) : 0;
+  const avgAsset2 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset2Daily, 0) / data.length).toFixed(2) : 0;
+  const avgDiff = data.length > 0 ? (data.reduce((sum, d) => sum + d.diff, 0) / data.length).toFixed(2) : 0;
+
   return (
-    <div style={{ width: '100%', minHeight: '100vh', background: 'linear-gradient(to bottom right, #1f2937, #111827, #1f2937)', padding: '16px' }}>
+    <div style={{ 
+      width: '100%', 
+      minHeight: '100vh', 
+      background: 'linear-gradient(to bottom right, #1f2937, #111827, #1f2937)',
+      padding: '16px'
+    }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        <div style={{ backgroundColor: '#1f2937', borderRadius: '12px 12px 0 0', border: '1px solid #374151', padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderRadius: '12px 12px 0 0',
+          border: '1px solid #374151',
+          padding: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px'
+        }}>
           <div>
-            <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', marginBottom: '4px' }}>AI-Powered Crypto Analysis</h1>
+            <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', marginBottom: '4px' }}>
+              AI-Powered Crypto Analysis
+            </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <p style={{ fontSize: '14px', color: '#9ca3af' }}>Market Regime & Pairs Trading</p>
-              <span style={{ padding: '4px 8px', backgroundColor: '#10b981', color: '#d1fae5', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <p style={{ fontSize: '14px', color: '#9ca3af' }}>Algorithmic Trading with ML Backtesting</p>
+              <span style={{
+                padding: '4px 8px',
+                backgroundColor: '#10b981',
+                color: '#d1fae5',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
                 <Brain size={12} />
                 AI ACTIVE
               </span>
             </div>
           </div>
-          <button onClick={loadData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: loading ? '#4b5563' : '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: loading ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '500', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <button onClick={loadData} disabled={loading} style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 20px',
+            backgroundColor: loading ? '#4b5563' : '#2563eb',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+            fontWeight: '500',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}>
             <RefreshCw size={16} />
-            <span>Refresh</span>
+            <span>Refresh & Reanalyze</span>
           </button>
         </div>
 
         {algoAnalysis && algoAnalysis.prediction && algoAnalysis.prediction.action !== 'SKIP' && (
-          <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '24px' }}>
-            <div style={{ borderRadius: '12px', padding: '24px', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 78, 59, 0.3) 100%)', border: '2px solid rgba(16, 185, 129, 0.5)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                <Brain size={40} color="#34d399" />
-                <div>
-                  <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'white' }}>{algoAnalysis.prediction.perpetualAction}</div>
-                  <div style={{ fontSize: '16px', color: '#d1d5db', marginTop: '4px' }}>Confidence: {algoAnalysis.prediction.confidence}%</div>
-                </div>
-              </div>
-              
-              <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                <div style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '8px', fontWeight: 'bold' }}>📊 ANALYSIS</div>
-                <p style={{ color: '#e5e7eb', fontSize: '16px', lineHeight: '1.6', marginBottom: '0' }}>{algoAnalysis.prediction.reasoning}</p>
-              </div>
-
-              {algoAnalysis.prediction.pairsTrade && (
-                <div style={{ padding: '16px', backgroundColor: 'rgba(34, 197, 94, 0.15)', borderRadius: '8px', border: '2px solid rgba(34, 197, 94, 0.4)', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '14px', color: '#6ee7b7', fontWeight: 'bold', marginBottom: '12px' }}>💡 PAIRS TRADE</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div style={{ padding: '12px', backgroundColor: 'rgba(16, 185, 129, 0.2)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
-                      <div style={{ fontSize: '12px', color: '#6ee7b7', marginBottom: '4px' }}>LONG</div>
-                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#34d399' }}>{algoAnalysis.prediction.pairsTrade.long}</div>
+          <>
+            <div style={{
+              backgroundColor: '#1f2937',
+              borderLeft: '1px solid #374151',
+              borderRight: '1px solid #374151',
+              padding: '24px'
+            }}>
+              <div style={{
+                borderRadius: '12px',
+                padding: '24px',
+                background: algoAnalysis.prediction.action === 'LONG' 
+                  ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 78, 59, 0.3) 100%)'
+                  : algoAnalysis.prediction.action === 'SHORT'
+                  ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(127, 29, 29, 0.3) 100%)'
+                  : 'linear-gradient(135deg, rgba(107, 114, 128, 0.2) 0%, rgba(55, 65, 81, 0.3) 100%)',
+                border: algoAnalysis.prediction.action === 'LONG' 
+                  ? '2px solid rgba(16, 185, 129, 0.5)'
+                  : algoAnalysis.prediction.action === 'SHORT'
+                  ? '2px solid rgba(239, 68, 68, 0.5)'
+                  : '2px solid rgba(107, 114, 128, 0.5)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                      <Brain size={40} color={
+                        algoAnalysis.prediction.action === 'LONG' ? '#34d399' : 
+                        algoAnalysis.prediction.action === 'SHORT' ? '#f87171' : '#9ca3af'
+                      } />
+                      <div>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'white' }}>
+                          {algoAnalysis.prediction.perpetualAction}
+                        </div>
+                        <div style={{ fontSize: '16px', color: '#d1d5db', marginTop: '4px' }}>
+                          AI Confidence: {algoAnalysis.prediction.confidence}%
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ padding: '12px', backgroundColor: 'rgba(239, 68, 68, 0.2)', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.4)' }}>
-                      <div style={{ fontSize: '12px', color: '#fca5a5', marginBottom: '4px' }}>SHORT</div>
-                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f87171' }}>{algoAnalysis.prediction.pairsTrade.short}</div>
+                    
+                    <div style={{ 
+                      marginBottom: '20px',
+                      padding: '16px',
+                      backgroundColor: 'rgba(0,0,0,0.3)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255,255,255,0.1)'
+                    }}>
+                      <div style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '8px', fontWeight: 'bold' }}>
+                        📊 ANALYSIS
+                      </div>
+                      <p style={{ color: '#e5e7eb', fontSize: '16px', lineHeight: '1.6', marginBottom: '0' }}>
+                        {algoAnalysis.prediction.reasoning}
+                      </p>
+                    </div>
+
+                    <div style={{ 
+                      marginBottom: '20px',
+                      padding: '16px',
+                      backgroundColor: 'rgba(0,0,0,0.4)',
+                      borderRadius: '8px',
+                      border: '2px solid rgba(34, 197, 94, 0.3)'
+                    }}>
+                      <div style={{ fontSize: '14px', color: '#34d399', marginBottom: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>💡</span>
+                        PAIRS TRADING STRATEGY
+                      </div>
+                      <p style={{ color: '#e5e7eb', fontSize: '16px', lineHeight: '1.7', marginBottom: '16px' }}>
+                        {algoAnalysis.prediction.strategy}
+                      </p>
+                      
+                      {algoAnalysis.prediction.pairsTrade && (
+                        <div style={{
+                          padding: '16px',
+                          backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                          borderRadius: '8px',
+                          border: '2px solid rgba(34, 197, 94, 0.4)',
+                          marginBottom: '16px'
+                        }}>
+                          <div style={{ fontSize: '14px', color: '#6ee7b7', fontWeight: 'bold', marginBottom: '12px' }}>
+                            📊 EXECUTE BOTH POSITIONS (EQUAL $ AMOUNT)
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <div style={{ 
+                              padding: '12px',
+                              backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(16, 185, 129, 0.4)'
+                            }}>
+                              <div style={{ fontSize: '12px', color: '#6ee7b7', marginBottom: '4px' }}>LONG Position</div>
+                              <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#34d399' }}>
+                                LONG {algoAnalysis.prediction.pairsTrade.long}
+                              </div>
+                            </div>
+                            <div style={{ 
+                              padding: '12px',
+                              backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(239, 68, 68, 0.4)'
+                            }}>
+                              <div style={{ fontSize: '12px', color: '#fca5a5', marginBottom: '4px' }}>SHORT Position</div>
+                              <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f87171' }}>
+                                SHORT {algoAnalysis.prediction.pairsTrade.short}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ marginTop: '12px', padding: '10px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
+                            <div style={{ fontSize: '13px', color: '#d1d5db', marginBottom: '4px' }}>
+                              Expected Profit: <span style={{ color: '#34d399', fontWeight: 'bold' }}>+{algoAnalysis.prediction.pairsTrade.expectedProfit}%</span> (from gap closure)
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#9ca3af' }}>
+                              Current Gap: {algoAnalysis.prediction.pairsTrade.currentGap}% → Target Gap: {algoAnalysis.prediction.pairsTrade.targetGap}%
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div style={{ display: 'grid', gap: '12px' }}>
+                        <div style={{ 
+                          padding: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          borderRadius: '6px',
+                          borderLeft: '3px solid #3b82f6'
+                        }}>
+                          <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Entry Point</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fff' }}>{algoAnalysis.prediction.entryPrice}</div>
+                        </div>
+                        
+                        <div style={{ 
+                          padding: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          borderRadius: '6px',
+                          borderLeft: '3px solid #ef4444'
+                        }}>
+                          <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Stop Loss</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#f87171' }}>{algoAnalysis.prediction.stopLoss}</div>
+                        </div>
+                        
+                        <div style={{ 
+                          padding: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          borderRadius: '6px',
+                          borderLeft: '3px solid #22c55e'
+                        }}>
+                          <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Take Profit</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#34d399' }}>{algoAnalysis.prediction.takeProfit}</div>
+                        </div>
+                        
+                        <div style={{ 
+                          padding: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          borderRadius: '6px',
+                          borderLeft: '3px solid #f59e0b'
+                        }}>
+                          <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Position Size</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fbbf24' }}>{algoAnalysis.prediction.positionSize}</div>
+                        </div>
+                        
+                        <div style={{ 
+                          padding: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          borderRadius: '6px',
+                          borderLeft: '3px solid #8b5cf6'
+                        }}>
+                          <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Leverage</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#a78bfa' }}>{algoAnalysis.prediction.leverage}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                      <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Current Gap</div>
+                        <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#fff' }}>{algoAnalysis.prediction.currentGap}%</div>
+                      </div>
+                      <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Target Gap</div>
+                        <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#34d399' }}>{algoAnalysis.prediction.targetGap}%</div>
+                      </div>
+                      <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Expected Move</div>
+                        <div style={{ fontSize: '22px', fontWeight: 'bold', color: parseFloat(algoAnalysis.prediction.expectedMove) >= 0 ? '#34d399' : '#f87171' }}>
+                          {parseFloat(algoAnalysis.prediction.expectedMove) >= 0 ? '+' : ''}{algoAnalysis.prediction.expectedMove}%
+                        </div>
+                      </div>
+                      <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '14px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>Risk Level</div>
+                        <div style={{ 
+                          fontSize: '22px', 
+                          fontWeight: 'bold', 
+                          color: algoAnalysis.prediction.riskLevel === 'HIGH' ? '#f87171' : algoAnalysis.prediction.riskLevel === 'MEDIUM' ? '#fbbf24' : '#34d399' 
+                        }}>
+                          {algoAnalysis.prediction.riskLevel}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '8px' }}>Detected Patterns:</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {algoAnalysis.prediction.patterns.map((pattern, idx) => (
+                          <span key={idx} style={{
+                            padding: '6px 14px',
+                            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                            color: '#6ee7b7',
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            borderRadius: '12px',
+                            border: '1px solid rgba(16, 185, 129, 0.3)'
+                          }}>
+                            {pattern.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '12px', fontSize: '14px', color: '#9ca3af' }}>
+                      ⏱️ Time Horizon: {algoAnalysis.prediction.timeHorizon}
                     </div>
                   </div>
-                  <div style={{ marginTop: '12px', fontSize: '13px', color: '#d1d5db' }}>Expected Profit: <span style={{ color: '#34d399', fontWeight: 'bold' }}>+{algoAnalysis.prediction.pairsTrade.expectedProfit}%</span></div>
                 </div>
-              )}
-
-              {algoAnalysis.prediction.regimeWarnings && algoAnalysis.prediction.regimeWarnings.length > 0 && (
-                <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(59, 130, 246, 0.15)', borderRadius: '8px', borderLeft: '3px solid #3b82f6' }}>
-                  <div style={{ fontSize: '13px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '8px' }}>🔍 Market Context:</div>
-                  {algoAnalysis.prediction.regimeWarnings.map((warning, idx) => (
-                    <div key={idx} style={{ fontSize: '12px', color: '#93c5fd', marginBottom: '4px' }}>• {warning}</div>
-                  ))}
-                </div>
-              )}
+              </div>
             </div>
-          </div>
-        )}
 
-        {algoAnalysis && algoAnalysis.marketRegime && (
-          <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '24px' }}>
-            <div style={{ borderRadius: '12px', padding: '20px', backgroundColor: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                <TrendingUp size={24} color="#a78bfa" />
-                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Market Regime</h3>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Trend</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: algoAnalysis.marketRegime.marketTrend === 'BULL' ? '#34d399' : algoAnalysis.marketRegime.marketTrend === 'BEAR' ? '#f87171' : '#fbbf24' }}>{algoAnalysis.marketRegime.marketTrend}</div>
-                </div>
-                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>RSI</div>
-                  <div style={{ fontSize: '14px', color: '#d1d5db' }}>
-                    <div>{asset1Info.symbol}: <span style={{ fontWeight: 'bold', color: algoAnalysis.marketRegime.asset1Condition === 'OVERSOLD' ? '#34d399' : algoAnalysis.marketRegime.asset1Condition === 'OVERBOUGHT' ? '#f87171' : '#9ca3af' }}>{algoAnalysis.marketRegime.asset1RSI}</span></div>
-                    <div>{asset2Info.symbol}: <span style={{ fontWeight: 'bold', color: algoAnalysis.marketRegime.asset2Condition === 'OVERSOLD' ? '#34d399' : algoAnalysis.marketRegime.asset2Condition === 'OVERBOUGHT' ? '#f87171' : '#9ca3af' }}>{algoAnalysis.marketRegime.asset2RSI}</span></div>
+            <div style={{
+              backgroundColor: '#1f2937',
+              borderLeft: '1px solid #374151',
+              borderRight: '1px solid #374151',
+              padding: '24px'
+            }}>
+              <div style={{
+                borderRadius: '8px',
+                padding: '16px',
+                border: parseFloat(algoAnalysis.prediction.confidence) >= 40 
+                  ? '2px solid rgba(16, 185, 129, 0.5)' 
+                  : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                  ? '2px solid rgba(251, 191, 36, 0.5)'
+                  : '2px solid rgba(239, 68, 68, 0.5)',
+                backgroundColor: parseFloat(algoAnalysis.prediction.confidence) >= 40
+                  ? 'rgba(6, 78, 59, 0.3)'
+                  : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                  ? 'rgba(120, 53, 15, 0.3)'
+                  : 'rgba(127, 29, 29, 0.3)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {parseFloat(algoAnalysis.prediction.confidence) >= 40 ? (
+                      <CheckCircle size={32} color="#34d399" />
+                    ) : parseFloat(algoAnalysis.prediction.confidence) >= 20 ? (
+                      <ArrowUpCircle size={32} color="#fbbf24" />
+                    ) : (
+                      <ArrowUpCircle size={32} color="#f87171" />
+                    )}
+                    <div>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>
+                        {parseFloat(algoAnalysis.prediction.confidence) >= 40 
+                          ? `✅ GOOD SIGNAL: ${algoAnalysis.prediction.perpetualAction}`
+                          : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                          ? `⚠️ WEAK SIGNAL: ${algoAnalysis.prediction.perpetualAction}`
+                          : `❌ VERY WEAK: ${algoAnalysis.prediction.perpetualAction}`
+                        }
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#d1d5db', marginTop: '4px' }}>
+                        {parseFloat(algoAnalysis.prediction.confidence) >= 40 
+                          ? `Confidence: ${algoAnalysis.prediction.confidence}% - Trade recommended`
+                          : parseFloat(algoAnalysis.prediction.confidence) >= 20
+                          ? `Confidence: ${algoAnalysis.prediction.confidence}% - Small position only or skip`
+                          : `Confidence: ${algoAnalysis.prediction.confidence}% - NOT RECOMMENDED, wait for better setup`
+                        }
+                      </div>
+                    </div>
                   </div>
+                  <div style={{ textAlign: 'right' }}>
+                    {backtestResults && (
+          <div style={{
+            backgroundColor: '#1f2937',
+            borderLeft: '1px solid #374151',
+            borderRight: '1px solid #374151',
+            padding: '24px'
+          }}>
+            <div style={{
+              borderRadius: '12px',
+              padding: '20px',
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.3)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <TrendingUp size={24} color="#34d399" />
+                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Mean Reversion Analysis</h3>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Current 24H Gap</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '#34d399' : '#f87171' }}>
+                    {priceInfo.asset1 && priceInfo.asset2 ? ((priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '+' : '') + (priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00'}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#6ee7b7', marginTop: '4px' }}>Live 24h gap</div>
                 </div>
-                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Support/Resistance</div>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: algoAnalysis.marketRegime.supportResistance === 'AT_SUPPORT' ? '#34d399' : algoAnalysis.marketRegime.supportResistance === 'AT_RESISTANCE' ? '#f87171' : '#fbbf24' }}>{algoAnalysis.marketRegime.supportResistance.replace(/_/g, ' ')}</div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Mean Gap ({timeframe})</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#60a5fa' }}>
+                    {avgDiff}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#93c5fd', marginTop: '4px' }}>Historical average</div>
                 </div>
-                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Volatility</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: algoAnalysis.marketRegime.volatilityRegime === 'HIGH' ? '#f87171' : algoAnalysis.marketRegime.volatilityRegime === 'LOW' ? '#34d399' : '#fbbf24' }}>{algoAnalysis.marketRegime.volatilityRegime}</div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Deviation from Mean</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: Math.abs((priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change) : 0) - parseFloat(avgDiff)) > 1 ? '#fbbf24' : '#34d399' }}>
+                    {priceInfo.asset1 && priceInfo.asset2 ? ((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)).toFixed(2) : '0.00'}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#fcd34d', marginTop: '4px' }}>Current vs average</div>
+                </div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Expected Gap Target</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#a78bfa' }}>
+                    {avgDiff}%
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#c4b5fd', marginTop: '4px' }}>Mean reversion target</div>
+                </div>
+              </div>
+
+              <div style={{ 
+                padding: '16px',
+                backgroundColor: 'rgba(0,0,0,0.3)',
+                borderRadius: '8px',
+                borderLeft: '3px solid #34d399'
+              }}>
+                <div style={{ fontSize: '14px', color: '#d1d5db', lineHeight: '1.6' }}>
+                  <strong style={{ color: '#34d399' }}>📊 Mean Reversion Theory:</strong> The gap between {asset1Info.symbol} and {asset2Info.symbol} tends to revert to its historical average of <strong>{avgDiff}%</strong>. 
+                  {priceInfo.asset1 && priceInfo.asset2 && Math.abs((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)) > 1 ? (
+                    <span style={{ color: '#fbbf24' }}> Current gap is <strong>{Math.abs((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)).toFixed(2)}%</strong> away from the mean, suggesting {(priceInfo.asset2.change - priceInfo.asset1.change) > parseFloat(avgDiff) ? `${asset1Info.symbol} should catch up (LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol})` : `${asset2Info.symbol} should catch up (LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol})`}.</span>
+                  ) : (
+                    <span style={{ color: '#34d399' }}> The gap is currently close to the historical average, indicating balanced performance.</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -648,118 +973,607 @@ function App() {
         )}
 
         {backtestResults && (
-          <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '24px' }}>
-            <div style={{ borderRadius: '12px', padding: '20px', backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                <CheckCircle size={24} color="#60a5fa" />
-                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Backtest</h3>
+                      <>
+                        <div style={{ 
+                          fontSize: '24px', 
+                          fontWeight: 'bold', 
+                          color: parseFloat(backtestResults.winRate) >= 60 ? '#34d399' : parseFloat(backtestResults.winRate) >= 50 ? '#fbbf24' : '#f87171'
+                        }}>
+                          {backtestResults.winRate}%
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#9ca3af' }}>Win Rate</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                {parseFloat(algoAnalysis.prediction.confidence) < 40 && (
+                  <div style={{ 
+                    marginTop: '12px', 
+                    padding: '12px', 
+                    backgroundColor: 'rgba(0,0,0,0.3)', 
+                    borderRadius: '6px',
+                    borderLeft: parseFloat(algoAnalysis.prediction.confidence) < 20 ? '3px solid #ef4444' : '3px solid #f59e0b'
+                  }}>
+                    <div style={{ fontSize: '13px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '4px' }}>
+                      ⚠️ TRADING WARNING
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
+                      {parseFloat(algoAnalysis.prediction.confidence) < 20 
+                        ? `This signal has very low confidence (${algoAnalysis.prediction.confidence}%). High risk of loss. Recommended action: SKIP this trade and wait for confidence above 40%.`
+                        : `This signal has low confidence (${algoAnalysis.prediction.confidence}%). Only consider if you have high risk tolerance. Use 1-2% position size maximum.`
+                      }
+                    </div>
+                  </div>
+                )}
+                
+                {backtestResults && parseFloat(backtestResults.winRate) < 55 && (
+                  <div style={{ 
+                    marginTop: '12px', 
+                    padding: '12px', 
+                    backgroundColor: 'rgba(0,0,0,0.3)', 
+                    borderRadius: '6px',
+                    borderLeft: '3px solid #ef4444'
+                  }}>
+                    <div style={{ fontSize: '13px', color: '#f87171', fontWeight: 'bold', marginBottom: '4px' }}>
+                      📉 POOR BACKTEST PERFORMANCE
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
+                      Historical win rate of {backtestResults.winRate}% is below profitable threshold (need 55%+). This strategy has lost money in backtesting. Profit Factor: {backtestResults.profitFactor} (need 1.5+).
+                    </div>
+                  </div>
+                )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
-                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Win Rate</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: parseFloat(backtestResults.winRate) >= 60 ? '#34d399' : '#fbbf24' }}>{backtestResults.winRate}%</div>
+            </div>
+          </>
+        )}
+
+        {backtestResults && (!algoAnalysis?.prediction || algoAnalysis.prediction.action === 'SKIP') && (
+          <div style={{
+            backgroundColor: '#1f2937',
+            borderLeft: '1px solid #374151',
+            borderRight: '1px solid #374151',
+            padding: '24px'
+          }}>
+            <div style={{
+              borderRadius: '12px',
+              padding: '24px',
+              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(127, 29, 29, 0.2) 100%)',
+              border: '2px solid rgba(239, 68, 68, 0.4)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ fontSize: '40px' }}>🚫</div>
+                <div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f87171' }}>
+                    NO TRADE SIGNAL
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#fca5a5', marginTop: '4px' }}>
+                    Current setup doesn't meet profitability criteria
+                  </div>
                 </div>
-                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Trades</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>{backtestResults.totalTrades}</div>
+              </div>
+
+              <div style={{ 
+                padding: '16px',
+                backgroundColor: 'rgba(0,0,0,0.4)',
+                borderRadius: '8px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ fontSize: '14px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '12px' }}>
+                  ⚠️ WHY NO SIGNAL?
                 </div>
-                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Profit Factor</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: parseFloat(backtestResults.profitFactor) >= 1.5 ? '#34d399' : '#fbbf24' }}>{backtestResults.profitFactor}</div>
+                <div style={{ fontSize: '14px', color: '#e5e7eb', lineHeight: '1.6' }}>
+                  {algoAnalysis?.prediction?.reasoning || `None of the thresholds are met. Current gap: ${data.length > 0 ? data[data.length - 1].diff.toFixed(2) : '0.00'}%`}
+                </div>
+              </div>
+
+              <div style={{ 
+                padding: '16px',
+                backgroundColor: 'rgba(0,0,0,0.3)',
+                borderRadius: '8px'
+              }}>
+                <div style={{ fontSize: '13px', color: '#9ca3af', fontWeight: 'bold', marginBottom: '12px' }}>
+                  📊 CURRENT METRICS vs REQUIREMENTS (Need ANY 1):
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
+                  Current 24h Gap: {priceInfo.asset1 && priceInfo.asset2 ? Math.abs(priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00'}%
+                </div>
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: '#d1d5db' }}>Win Rate:</span>
+                    <span style={{ 
+                      color: parseFloat(backtestResults.winRate) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minWinRate || 65) ? '#34d399' : '#f87171',
+                      fontWeight: 'bold'
+                    }}>
+                      {backtestResults.winRate}% {parseFloat(backtestResults.winRate) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minWinRate || 65) ? '✅' : `❌ (need ${algoAnalysis?.prediction?.autoThresholds?.minWinRate || 65}%+)`}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: '#d1d5db' }}>Profit Factor:</span>
+                    <span style={{ 
+                      color: parseFloat(backtestResults.profitFactor) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minProfitFactor || 1.5) ? '#34d399' : '#f87171',
+                      fontWeight: 'bold'
+                    }}>
+                      {backtestResults.profitFactor} {parseFloat(backtestResults.profitFactor) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minProfitFactor || 1.5) ? '✅' : `❌ (need ${algoAnalysis?.prediction?.autoThresholds?.minProfitFactor || 1.5}+)`}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: '#d1d5db' }}>Current Gap:</span>
+                    <span style={{ 
+                      color: data.length > 0 && Math.abs(data[data.length - 1].diff) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0) ? '#34d399' : '#f87171',
+                      fontWeight: 'bold'
+                    }}>
+                      {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}% {data.length > 0 && Math.abs(data[data.length - 1].diff) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0) ? '✅' : `❌ (need ${algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0}%+)`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ 
+                marginTop: '16px',
+                padding: '12px',
+                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                borderRadius: '8px',
+                borderLeft: '3px solid #3b82f6'
+              }}>
+                <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
+                  💡 <strong>NOTE:</strong> A trade signal will be generated if ANY ONE of these thresholds is met. Adjust your manual thresholds above to control when trades are recommended.
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '24px' }}>
-          <h3 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>Settings</h3>
+        {backtestResults && (
+          <div style={{
+            backgroundColor: '#1f2937',
+            borderLeft: '1px solid #374151',
+            borderRight: '1px solid #374151',
+            padding: '24px'
+          }}>
+            <div style={{
+              borderRadius: '12px',
+              padding: '20px',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.3)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <CheckCircle size={24} color="#60a5fa" />
+                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Backtest Performance</h3>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Win Rate</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: parseFloat(backtestResults.winRate) >= 60 ? '#34d399' : parseFloat(backtestResults.winRate) >= 50 ? '#fbbf24' : '#f87171' }}>
+                    {backtestResults.winRate}%
+                  </div>
+                </div>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Total Trades</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>{backtestResults.totalTrades}</div>
+                </div>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Wins / Losses</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>{backtestResults.wins} / {backtestResults.losses}</div>
+                </div>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Profit Factor</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: parseFloat(backtestResults.profitFactor) >= 1.5 ? '#34d399' : parseFloat(backtestResults.profitFactor) >= 1 ? '#fbbf24' : '#f87171' }}>
+                    {backtestResults.profitFactor}
+                  </div>
+                </div>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Avg Win</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#34d399' }}>+{backtestResults.avgWin}%</div>
+                </div>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Avg Loss</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f87171' }}>-{backtestResults.avgLoss}%</div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
+                <div style={{ fontSize: '13px', color: '#d1d5db' }}>
+                  📊 Strategy: Mean Reversion with 1.2σ threshold | Tested on {backtestResults.totalTrades} historical signals
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          padding: '24px'
+        }}>
+          <h3 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+            🎯 Manual Threshold Settings
+          </h3>
+          <div style={{ 
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '8px',
+            padding: '20px'
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                  Minimum Win Rate (%)
+                </label>
+                <input 
+                  type="number" 
+                  value={manualThresholds.minWinRate}
+                  onChange={(e) => setManualThresholds({...manualThresholds, minWinRate: parseFloat(e.target.value) || 0})}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    backgroundColor: '#374151',
+                    color: 'white',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    fontSize: '16px'
+                  }}
+                  min="0"
+                  max="100"
+                  step="1"
+                />
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  Current backtest: {backtestResults?.winRate}%
+                </div>
+              </div>
+              
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                  Minimum Profit Factor
+                </label>
+                <input 
+                  type="number" 
+                  value={manualThresholds.minProfitFactor}
+                  onChange={(e) => setManualThresholds({...manualThresholds, minProfitFactor: parseFloat(e.target.value) || 0})}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    backgroundColor: '#374151',
+                    color: 'white',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    fontSize: '16px'
+                  }}
+                  min="0"
+                  max="10"
+                  step="0.1"
+                />
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  Current backtest: {backtestResults?.profitFactor}
+                </div>
+              </div>
+              
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                  Minimum Gap (%)
+                </label>
+                <input 
+                  type="number" 
+                  value={manualThresholds.minGap}
+                  onChange={(e) => setManualThresholds({...manualThresholds, minGap: parseFloat(e.target.value) || 0})}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    backgroundColor: '#374151',
+                    color: 'white',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    fontSize: '16px'
+                  }}
+                  min="0"
+                  max="10"
+                  step="0.1"
+                />
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  Current gap: {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}%
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ 
+              marginTop: '16px',
+              padding: '12px',
+              backgroundColor: 'rgba(59, 130, 246, 0.15)',
+              borderRadius: '8px',
+              borderLeft: '3px solid #3b82f6'
+            }}>
+              <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
+                💡 <strong>TIP:</strong> Trade signal will be generated if ANY ONE threshold is met (not all required). Start conservative (65% win rate, 1.5 profit factor, 1.0% gap) and adjust based on your live trading results.
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div style={{
+              marginBottom: '16px',
+              backgroundColor: 'rgba(127, 29, 29, 0.5)',
+              border: '1px solid rgba(239, 68, 68, 0.5)',
+              borderRadius: '8px',
+              padding: '16px'
+            }}>
+              <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>⚠️ API Error</span>
+              <p style={{ color: '#fecaca', fontSize: '14px' }}>{error}</p>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             <div>
-              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>Asset 1</label>
-              <select value={asset1} onChange={(e) => setAsset1(e.target.value)} style={{ width: '100%', padding: '8px 16px', backgroundColor: '#374151', color: 'white', border: '1px solid #4b5563', borderRadius: '8px', fontSize: '14px', cursor: 'pointer' }}>
-                {CRYPTO_OPTIONS.map(crypto => <option key={crypto.id} value={crypto.id}>{crypto.symbol}</option>)}
+              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                Asset 1
+              </label>
+              <select value={asset1} onChange={(e) => setAsset1(e.target.value)} style={{
+                width: '100%',
+                padding: '8px 16px',
+                backgroundColor: '#374151',
+                color: 'white',
+                border: '1px solid #4b5563',
+                borderRadius: '8px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}>
+                {CRYPTO_OPTIONS.map(crypto => (
+                  <option key={crypto.id} value={crypto.id}>{crypto.symbol} - {crypto.name}</option>
+                ))}
               </select>
             </div>
             <div>
-              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>Asset 2</label>
-              <select value={asset2} onChange={(e) => setAsset2(e.target.value)} style={{ width: '100%', padding: '8px 16px', backgroundColor: '#374151', color: 'white', border: '1px solid #4b5563', borderRadius: '8px', fontSize: '14px', cursor: 'pointer' }}>
-                {CRYPTO_OPTIONS.map(crypto => <option key={crypto.id} value={crypto.id}>{crypto.symbol}</option>)}
+              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                Asset 2
+              </label>
+              <select value={asset2} onChange={(e) => setAsset2(e.target.value)} style={{
+                width: '100%',
+                padding: '8px 16px',
+                backgroundColor: '#374151',
+                color: 'white',
+                border: '1px solid #4b5563',
+                borderRadius: '8px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}>
+                {CRYPTO_OPTIONS.map(crypto => (
+                  <option key={crypto.id} value={crypto.id}>{crypto.symbol} - {crypto.name}</option>
+                ))}
               </select>
             </div>
             <div>
-              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>Interval</label>
-              <select value={interval} onChange={(e) => setInterval(e.target.value)} style={{ width: '100%', padding: '8px 16px', backgroundColor: '#374151', color: 'white', border: '1px solid #4b5563', borderRadius: '8px', fontSize: '14px', cursor: 'pointer' }}>
-                {INTERVAL_OPTIONS.map(int => <option key={int.value} value={int.value}>{int.label}</option>)}
+              <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                Interval
+              </label>
+              <select value={interval} onChange={(e) => setInterval(e.target.value)} style={{
+                width: '100%',
+                padding: '8px 16px',
+                backgroundColor: '#374151',
+                color: 'white',
+                border: '1px solid #4b5563',
+                borderRadius: '8px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}>
+                {INTERVAL_OPTIONS.map(int => (
+                  <option key={int.value} value={int.value}>{int.label}</option>
+                ))}
               </select>
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', padding: '16px 24px', backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151' }}>
-          <div style={{ background: 'linear-gradient(to bottom right, rgba(249, 115, 22, 0.2), rgba(249, 115, 22, 0.1))', border: '1px solid rgba(249, 115, 22, 0.3)', borderRadius: '8px', padding: '16px' }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+          gap: '16px',
+          padding: '16px 24px',
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151'
+        }}>
+          <div style={{
+            background: 'linear-gradient(to bottom right, rgba(249, 115, 22, 0.2), rgba(249, 115, 22, 0.1))',
+            border: '1px solid rgba(249, 115, 22, 0.3)',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>{asset1Info.symbol} 24H</span>
+              <span style={{ color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>{asset1Info.symbol} 24H CHANGE</span>
               {priceInfo.asset1 && priceInfo.asset1.change >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
             </div>
             <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset1 && priceInfo.asset1.change >= 0 ? '#34d399' : '#f87171' }}>
               {priceInfo.asset1 && (priceInfo.asset1.change >= 0 ? '+' : '')}{priceInfo.asset1?.change.toFixed(2)}%
             </div>
+            {priceInfo.asset1 && (
+              <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <span>Current:</span>
+                  <span>${priceInfo.asset1.current.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span>Prev day close:</span>
+                  <span>${priceInfo.asset1.previous.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid rgba(156, 163, 175, 0.2)' }}>
+                  <span style={{ fontWeight: '500' }}>{timeframe} Change:</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    color: priceInfo.asset1.changeTimeframe >= 0 ? '#34d399' : '#f87171'
+                  }}>
+                    {priceInfo.asset1.changeTimeframe >= 0 ? '+' : ''}{priceInfo.asset1.changeTimeframe.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            )}
+            <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg: {avgAsset1}%</div>
           </div>
           
-          <div style={{ background: 'linear-gradient(to bottom right, rgba(168, 85, 247, 0.2), rgba(168, 85, 247, 0.1))', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: '8px', padding: '16px' }}>
+          <div style={{
+            background: 'linear-gradient(to bottom right, rgba(168, 85, 247, 0.2), rgba(168, 85, 247, 0.1))',
+            border: '1px solid rgba(168, 85, 247, 0.3)',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ color: '#c084fc', fontSize: '12px', fontWeight: 'bold' }}>{asset2Info.symbol} 24H</span>
+              <span style={{ color: '#c084fc', fontSize: '12px', fontWeight: 'bold' }}>{asset2Info.symbol} 24H CHANGE</span>
               {priceInfo.asset2 && priceInfo.asset2.change >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
             </div>
             <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset2 && priceInfo.asset2.change >= 0 ? '#34d399' : '#f87171' }}>
               {priceInfo.asset2 && (priceInfo.asset2.change >= 0 ? '+' : '')}{priceInfo.asset2?.change.toFixed(2)}%
             </div>
+            {priceInfo.asset2 && (
+              <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <span>Current:</span>
+                  <span>${priceInfo.asset2.current.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span>Prev day close:</span>
+                  <span>${priceInfo.asset2.previous.toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid rgba(156, 163, 175, 0.2)' }}>
+                  <span style={{ fontWeight: '500' }}>{timeframe} Change:</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    color: priceInfo.asset2.changeTimeframe >= 0 ? '#34d399' : '#f87171'
+                  }}>
+                    {priceInfo.asset2.changeTimeframe >= 0 ? '+' : ''}{priceInfo.asset2.changeTimeframe.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            )}
+            <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg: {avgAsset2}%</div>
           </div>
           
-          <div style={{ background: 'linear-gradient(to bottom right, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1))', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px', padding: '16px' }}>
+          <div style={{
+            background: 'linear-gradient(to bottom right, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1))',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold' }}>GAP</span>
-              {parseFloat(currentGap) >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
+              <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold' }}>24H PRICE GAP</span>
+              {priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? <TrendingUp size={16} color="#34d399" /> : <TrendingDown size={16} color="#f87171" />}
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: parseFloat(currentGap) >= 0 ? '#34d399' : '#f87171' }}>
-              {parseFloat(currentGap) >= 0 ? '+' : ''}{currentGap}%
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '#34d399' : '#f87171' }}>
+              {priceInfo.asset1 && priceInfo.asset2 && ((priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '+' : '')}{priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00'}%
             </div>
+            <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
+              {asset2Info.symbol} {priceInfo.asset2?.change.toFixed(2)}% vs {asset1Info.symbol} {priceInfo.asset1?.change.toFixed(2)}%
+            </div>
+            <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px' }}>Avg Gap: {avgDiff}%</div>
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '12px 24px' }}>
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          padding: '12px 24px'
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginRight: '8px' }}>Timeframe:</span>
-            {['1D', '7D', '1M', '3M'].map((tf) => (
-              <button key={tf} onClick={() => setTimeframe(tf)} style={{ padding: '8px 16px', borderRadius: '8px', fontWeight: '500', fontSize: '14px', border: 'none', cursor: 'pointer', backgroundColor: timeframe === tf ? '#2563eb' : '#374151', color: timeframe === tf ? 'white' : '#d1d5db' }}>
+            {['1D', '7D', '1M', '3M', '6M', '1Y', 'YTD'].map((tf) => (
+              <button key={tf} onClick={() => setTimeframe(tf)} style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontWeight: '500',
+                fontSize: '14px',
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor: timeframe === tf ? '#2563eb' : '#374151',
+                color: timeframe === tf ? 'white' : '#d1d5db',
+                boxShadow: timeframe === tf ? '0 4px 6px rgba(0,0,0,0.1)' : 'none'
+              }}>
                 {tf}
               </button>
             ))}
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', borderBottom: '1px solid #374151', borderRadius: '0 0 12px 12px', padding: '24px' }}>
-          <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>Chart</h2>
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          padding: '24px'
+        }}>
+          <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Asset Performance Comparison
+          </h2>
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '22px', color: '#d1d5db' }}>Loading...</div>
+                <div style={{ fontSize: '22px', color: '#d1d5db', marginBottom: '8px' }}>Loading chart...</div>
+                <div style={{ fontSize: '16px', color: '#6b7280' }}>Please wait</div>
               </div>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={500}>
               <LineChart data={data}>
+                <defs>
+                  <linearGradient id="asset1Gradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={asset1Info.color} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={asset1Info.color} stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="asset2Gradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={asset2Info.color} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={asset2Info.color} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="date" tick={{ fontSize: 13, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
-                <YAxis tick={{ fontSize: 13, fill: '#9ca3af' }} stroke="#4b5563" />
+                <YAxis tick={{ fontSize: 13, fill: '#9ca3af' }} label={{ value: '% Change', angle: -90, position: 'insideLeft', fill: '#9ca3af', style: { fontSize: '14px' } }} stroke="#4b5563" />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '14px' }} iconType="line" />
-                <Line type="monotone" dataKey="asset1Daily" stroke={asset1Info.color} strokeWidth={3} name={asset1Info.name} dot={false} />
-                <Line type="monotone" dataKey="asset2Daily" stroke={asset2Info.color} strokeWidth={3} name={asset2Info.name} dot={false} />
+                <Line type="monotone" dataKey="asset1Daily" stroke={asset1Info.color} strokeWidth={3} name={`${asset1Info.name}`} dot={false} fill="url(#asset1Gradient)" />
+                <Line type="monotone" dataKey="asset2Daily" stroke={asset2Info.color} strokeWidth={3} name={`${asset2Info.name}`} dot={false} fill="url(#asset2Gradient)" />
               </LineChart>
             </ResponsiveContainer>
           )}
+        </div>
+
+        <div style={{
+          backgroundColor: '#1f2937',
+          borderLeft: '1px solid #374151',
+          borderRight: '1px solid #374151',
+          borderBottom: '1px solid #374151',
+          borderRadius: '0 0 12px 12px',
+          padding: '24px'
+        }}>
+          <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Price Gap Analysis
+          </h2>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '22px', color: '#d1d5db', marginBottom: '8px' }}>Loading chart...</div>
+                <div style={{ fontSize: '16px', color: '#6b7280' }}>Please wait</div>
+              </div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={500}>
+              <LineChart data={data}>
+                <defs>
+                  <linearGradient id="gapGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="date" tick={{ fontSize: 13, fill: '#9ca3af' }} angle={-45} textAnchor="end" height={80} stroke="#4b5563" />
+                <YAxis tick={{ fontSize: 13, fill: '#9ca3af' }} label={{ value: 'Gap (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af', style: { fontSize: '14px' } }} stroke="#4b5563" />
+                <Tooltip content={<GapTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '14px' }} iconType="line" />
+                <Line type="monotone" dataKey="diff" stroke="#10b981" strokeWidth={3} name={`Gap (${asset2Info.symbol} - ${asset1Info.symbol})`} dot={false} fill="url(#gapGradient)" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+          <div style={{ marginTop: '16px', padding: '14px', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <p style={{ color: '#9ca3af', fontSize: '15px' }}>
+              <span style={{ color: '#d1d5db', fontWeight: '500' }}>🤖 AI Strategy:</span> Machine learning pattern recognition with mean reversion backtesting
+            </p>
+          </div>
         </div>
       </div>
     </div>
