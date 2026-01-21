@@ -1012,7 +1012,6 @@ function App() {
                       color: data.length > 0 && Math.abs(data[data.length - 1].diff) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0) ? '#34d399' : '#f87171',
                       fontWeight: 'bold'
                     }}>
-                      {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}% {data.length > 0 && Math.abs(data[data
                     {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}% {data.length > 0 && Math.abs(data[data.length - 1].diff) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0) ? '✅' : `❌ (need ${algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0}%+)`}
                     </span>
                   </div>
