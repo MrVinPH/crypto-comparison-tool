@@ -43,8 +43,8 @@ function App() {
     }
   };
 
-  const detectMarketRegime = (chartData, priceInfo) => {
-    if (!chartData.length || !priceInfo.asset1 || !priceInfo.asset2) return null;
+  const detectMarketRegime = (chartData, priceInfoData) => {
+    if (!chartData.length || !priceInfoData.asset1 || !priceInfoData.asset2) return null;
     
     const recentData = chartData.slice(-10);
     const priceChanges1 = recentData.map(d => d.asset1Daily);
@@ -76,11 +76,11 @@ function App() {
       regimeLeader = 'NEUTRAL';
     }
     
-    const calculateRSI = (data) => {
-      if (data.length < 14) return 50;
+    const calculateRSI = (rsiData) => {
+      if (rsiData.length < 14) return 50;
       const changes = [];
-      for (let i = 1; i < data.length; i++) {
-        changes.push(data[i] - data[i-1]);
+      for (let i = 1; i < rsiData.length; i++) {
+        changes.push(rsiData[i] - rsiData[i-1]);
       }
       const gains = changes.map(c => c > 0 ? c : 0);
       const losses = changes.map(c => c < 0 ? Math.abs(c) : 0);
@@ -110,12 +110,12 @@ function App() {
     const sortedGaps = [...allGaps].sort((a, b) => a - b);
     const q1 = sortedGaps[Math.floor(sortedGaps.length * 0.25)];
     const q3 = sortedGaps[Math.floor(sortedGaps.length * 0.75)];
-    const currentGap = priceInfo.asset2.change - priceInfo.asset1.change;
+    const currentGapValue = priceInfoData.asset2.change - priceInfoData.asset1.change;
     
     let supportResistance;
-    if (currentGap <= q1) {
+    if (currentGapValue <= q1) {
       supportResistance = 'AT_SUPPORT';
-    } else if (currentGap >= q3) {
+    } else if (currentGapValue >= q3) {
       supportResistance = 'AT_RESISTANCE';
     } else {
       supportResistance = 'MIDDLE_RANGE';
@@ -154,7 +154,6 @@ function App() {
     
     const patterns = [];
     const diffs = chartData.map(d => d.diff);
-    const recentDiffs = diffs.slice(-5);
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
     const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     const lastDiff = diffs[diffs.length - 1];
@@ -259,8 +258,8 @@ function App() {
     };
   };
 
-  const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info, marketRegime) => {
-    if (!chartData.length || !patterns.length || !backtestResults || !marketRegime) return null;
+  const generatePrediction = (chartData, patterns, backtest, a1Info, a2Info, regime) => {
+    if (!chartData.length || !patterns.length || !backtest || !regime) return null;
     
     const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change) : 0;
     
@@ -270,23 +269,20 @@ function App() {
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
     const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     
-    const avgWin = parseFloat(backtestResults.avgWin);
-    const avgLoss = parseFloat(backtestResults.avgLoss);
-    const winRate = parseFloat(backtestResults.winRate) / 100;
-    const profitFactor = parseFloat(backtestResults.profitFactor);
+    const profitFactor = parseFloat(backtest.profitFactor);
     
     const minWinRate = 65;
     const minProfitFactor = 1.5;
     const minGap = 1.0;
     
-    const meetsWinRate = parseFloat(backtestResults.winRate) >= minWinRate;
+    const meetsWinRate = parseFloat(backtest.winRate) >= minWinRate;
     const meetsProfitFactor = profitFactor >= minProfitFactor;
     const meetsGap = Math.abs(lastDiff) >= minGap;
     
     let regimeAdjustment = 0;
     let regimeWarnings = [];
     
-    if (marketRegime.marketTrend === 'BULL') {
+    if (regime.marketTrend === 'BULL') {
       if (lastDiff > 0) {
         regimeAdjustment -= 10;
         regimeWarnings.push('Bull market: ETH tends to outperform, current gap may persist');
@@ -294,7 +290,7 @@ function App() {
         regimeAdjustment += 10;
         regimeWarnings.push('Bull market: BTC ahead is unusual, strong mean reversion expected');
       }
-    } else if (marketRegime.marketTrend === 'BEAR') {
+    } else if (regime.marketTrend === 'BEAR') {
       if (lastDiff < 0) {
         regimeAdjustment -= 10;
         regimeWarnings.push('Bear market: BTC tends to hold better, current gap may persist');
@@ -304,38 +300,38 @@ function App() {
       }
     }
     
-    if (marketRegime.asset1Condition === 'OVERSOLD') {
+    if (regime.asset1Condition === 'OVERSOLD') {
       regimeAdjustment += 5;
-      regimeWarnings.push(`${asset1Info.symbol} is oversold (RSI: ${marketRegime.asset1RSI}), bounce likely`);
-    } else if (marketRegime.asset1Condition === 'OVERBOUGHT') {
+      regimeWarnings.push(`${a1Info.symbol} is oversold (RSI: ${regime.asset1RSI}), bounce likely`);
+    } else if (regime.asset1Condition === 'OVERBOUGHT') {
       regimeAdjustment -= 5;
-      regimeWarnings.push(`${asset1Info.symbol} is overbought (RSI: ${marketRegime.asset1RSI}), pullback likely`);
+      regimeWarnings.push(`${a1Info.symbol} is overbought (RSI: ${regime.asset1RSI}), pullback likely`);
     }
     
-    if (marketRegime.asset2Condition === 'OVERSOLD') {
+    if (regime.asset2Condition === 'OVERSOLD') {
       regimeAdjustment -= 5;
-      regimeWarnings.push(`${asset2Info.symbol} is oversold (RSI: ${marketRegime.asset2RSI}), bounce likely`);
-    } else if (marketRegime.asset2Condition === 'OVERBOUGHT') {
+      regimeWarnings.push(`${a2Info.symbol} is oversold (RSI: ${regime.asset2RSI}), bounce likely`);
+    } else if (regime.asset2Condition === 'OVERBOUGHT') {
       regimeAdjustment += 5;
-      regimeWarnings.push(`${asset2Info.symbol} is overbought (RSI: ${marketRegime.asset2RSI}), pullback likely`);
+      regimeWarnings.push(`${a2Info.symbol} is overbought (RSI: ${regime.asset2RSI}), pullback likely`);
     }
     
-    if (marketRegime.supportResistance === 'AT_SUPPORT') {
+    if (regime.supportResistance === 'AT_SUPPORT') {
       if (lastDiff < 0) {
         regimeAdjustment += 10;
         regimeWarnings.push('Gap at historical support level, strong bounce expected');
       }
-    } else if (marketRegime.supportResistance === 'AT_RESISTANCE') {
+    } else if (regime.supportResistance === 'AT_RESISTANCE') {
       if (lastDiff > 0) {
         regimeAdjustment += 10;
         regimeWarnings.push('Gap at historical resistance level, reversal likely');
       }
     }
     
-    if (marketRegime.volatilityRegime === 'HIGH') {
+    if (regime.volatilityRegime === 'HIGH') {
       regimeAdjustment -= 15;
       regimeWarnings.push('High volatility environment, mean reversion less reliable');
-    } else if (marketRegime.volatilityRegime === 'LOW') {
+    } else if (regime.volatilityRegime === 'LOW') {
       regimeAdjustment += 10;
       regimeWarnings.push('Low volatility environment, mean reversion more reliable');
     }
@@ -350,7 +346,7 @@ function App() {
       perpetualAction = 'NO TRADE';
       
       let reasons = [];
-      if (!meetsWinRate) reasons.push(`Win rate ${backtestResults.winRate}% < ${minWinRate}%`);
+      if (!meetsWinRate) reasons.push(`Win rate ${backtest.winRate}% < ${minWinRate}%`);
       if (!meetsProfitFactor) reasons.push(`Profit factor ${profitFactor.toFixed(2)} < ${minProfitFactor}`);
       if (!meetsGap) reasons.push(`Gap ${Math.abs(lastDiff).toFixed(2)}% < ${minGap}%`);
       
@@ -361,13 +357,13 @@ function App() {
     } else {
       if (lastDiff > 0) {
         action = 'PAIRS';
-        targetAsset = asset1Info.symbol;
+        targetAsset = a1Info.symbol;
         perpetualAction = `PAIRS TRADE`;
-        reasoning = `${asset2Info.symbol} ahead by ${lastDiff.toFixed(2)}%. Mean reversion expected.`;
-        strategy = `LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol} (equal $ amounts)`;
+        reasoning = `${a2Info.symbol} ahead by ${lastDiff.toFixed(2)}%. Mean reversion expected.`;
+        strategy = `LONG ${a1Info.symbol} + SHORT ${a2Info.symbol} (equal $ amounts)`;
         pairsTrade = {
-          long: asset1Info.symbol,
-          short: asset2Info.symbol,
+          long: a1Info.symbol,
+          short: a2Info.symbol,
           currentGap: lastDiff.toFixed(2),
           expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
         };
@@ -375,13 +371,13 @@ function App() {
         confidence = Math.max(confidence, 0);
       } else {
         action = 'PAIRS';
-        targetAsset = asset2Info.symbol;
+        targetAsset = a2Info.symbol;
         perpetualAction = `PAIRS TRADE`;
-        reasoning = `${asset1Info.symbol} ahead by ${Math.abs(lastDiff).toFixed(2)}%. Mean reversion expected.`;
-        strategy = `LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol} (equal $ amounts)`;
+        reasoning = `${a1Info.symbol} ahead by ${Math.abs(lastDiff).toFixed(2)}%. Mean reversion expected.`;
+        strategy = `LONG ${a2Info.symbol} + SHORT ${a1Info.symbol} (equal $ amounts)`;
         pairsTrade = {
-          long: asset2Info.symbol,
-          short: asset1Info.symbol,
+          long: a2Info.symbol,
+          short: a1Info.symbol,
           currentGap: lastDiff.toFixed(2),
           expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
         };
@@ -412,7 +408,6 @@ function App() {
 
   const loadData = async () => {
     setLoading(true);
-    setError(null);
     
     const asset1Info = getAssetInfo(asset1);
     const asset2Info = getAssetInfo(asset2);
@@ -524,8 +519,9 @@ function App() {
   
   const asset1Info = getAssetInfo(asset1);
   const asset2Info = getAssetInfo(asset2);
-
   const currentGap = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00';
+
+  const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       return (
         <div style={{
@@ -553,11 +549,6 @@ function App() {
     }
     return null;
   };
-
-  const avgAsset1 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset1Daily, 0) / data.length).toFixed(2) : 0;
-  const avgAsset2 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset2Daily, 0) / data.length).toFixed(2) : 0;
-  const avgDiff = data.length > 0 ? (data.reduce((sum, d) => sum + d.diff, 0) / data.length).toFixed(2) : 0;
-  const currentGap = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00';
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: 'linear-gradient(to bottom right, #1f2937, #111827, #1f2937)', padding: '16px' }}>
@@ -597,7 +588,7 @@ function App() {
 
               {algoAnalysis.prediction.pairsTrade && (
                 <div style={{ padding: '16px', backgroundColor: 'rgba(34, 197, 94, 0.15)', borderRadius: '8px', border: '2px solid rgba(34, 197, 94, 0.4)', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '14px', color: '#6ee7b7', fontWeight: 'bold', marginBottom: '12px' }}>💡 PAIRS TRADE EXECUTION</div>
+                  <div style={{ fontSize: '14px', color: '#6ee7b7', fontWeight: 'bold', marginBottom: '12px' }}>💡 PAIRS TRADE</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div style={{ padding: '12px', backgroundColor: 'rgba(16, 185, 129, 0.2)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
                       <div style={{ fontSize: '12px', color: '#6ee7b7', marginBottom: '4px' }}>LONG</div>
@@ -629,23 +620,23 @@ function App() {
             <div style={{ borderRadius: '12px', padding: '20px', backgroundColor: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                 <TrendingUp size={24} color="#a78bfa" />
-                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Market Regime Analysis</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Market Regime</h3>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Market Trend</div>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Trend</div>
                   <div style={{ fontSize: '24px', fontWeight: 'bold', color: algoAnalysis.marketRegime.marketTrend === 'BULL' ? '#34d399' : algoAnalysis.marketRegime.marketTrend === 'BEAR' ? '#f87171' : '#fbbf24' }}>{algoAnalysis.marketRegime.marketTrend}</div>
                 </div>
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>RSI Indicators</div>
-                  <div style={{ fontSize: '14px', color: '#d1d5db', marginTop: '8px' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>RSI</div>
+                  <div style={{ fontSize: '14px', color: '#d1d5db' }}>
                     <div>{asset1Info.symbol}: <span style={{ fontWeight: 'bold', color: algoAnalysis.marketRegime.asset1Condition === 'OVERSOLD' ? '#34d399' : algoAnalysis.marketRegime.asset1Condition === 'OVERBOUGHT' ? '#f87171' : '#9ca3af' }}>{algoAnalysis.marketRegime.asset1RSI}</span></div>
                     <div>{asset2Info.symbol}: <span style={{ fontWeight: 'bold', color: algoAnalysis.marketRegime.asset2Condition === 'OVERSOLD' ? '#34d399' : algoAnalysis.marketRegime.asset2Condition === 'OVERBOUGHT' ? '#f87171' : '#9ca3af' }}>{algoAnalysis.marketRegime.asset2RSI}</span></div>
                   </div>
                 </div>
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px' }}>
                   <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Support/Resistance</div>
-                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: algoAnalysis.marketRegime.supportResistance === 'AT_SUPPORT' ? '#34d399' : algoAnalysis.marketRegime.supportResistance === 'AT_RESISTANCE' ? '#f87171' : '#fbbf24' }}>{algoAnalysis.marketRegime.supportResistance.replace(/_/g, ' ')}</div>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: algoAnalysis.marketRegime.supportResistance === 'AT_SUPPORT' ? '#34d399' : algoAnalysis.marketRegime.supportResistance === 'AT_RESISTANCE' ? '#f87171' : '#fbbf24' }}>{algoAnalysis.marketRegime.supportResistance.replace(/_/g, ' ')}</div>
                 </div>
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px' }}>
                   <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Volatility</div>
@@ -661,7 +652,7 @@ function App() {
             <div style={{ borderRadius: '12px', padding: '20px', backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                 <CheckCircle size={24} color="#60a5fa" />
-                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Backtest Performance</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Backtest</h3>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
@@ -669,7 +660,7 @@ function App() {
                   <div style={{ fontSize: '24px', fontWeight: 'bold', color: parseFloat(backtestResults.winRate) >= 60 ? '#34d399' : '#fbbf24' }}>{backtestResults.winRate}%</div>
                 </div>
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Total Trades</div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Trades</div>
                   <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>{backtestResults.totalTrades}</div>
                 </div>
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px' }}>
@@ -682,7 +673,7 @@ function App() {
         )}
 
         <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '24px' }}>
-          <h3 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>🎯 Settings</h3>
+          <h3 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>Settings</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             <div>
               <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>Asset 1</label>
@@ -749,11 +740,11 @@ function App() {
         </div>
 
         <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', borderBottom: '1px solid #374151', borderRadius: '0 0 12px 12px', padding: '24px' }}>
-          <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>Performance Chart</h2>
+          <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>Chart</h2>
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '500px' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '22px', color: '#d1d5db', marginBottom: '8px' }}>Loading...</div>
+                <div style={{ fontSize: '22px', color: '#d1d5db' }}>Loading...</div>
               </div>
             </div>
           ) : (
