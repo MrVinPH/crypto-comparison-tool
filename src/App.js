@@ -489,19 +489,27 @@ function App() {
   }, [timeframe, interval, asset1, asset2]);
 
   useEffect(() => {
-    // Regenerate prediction when thresholds change
-    if (data.length > 0 && backtestResults) {
+    // Regenerate prediction when thresholds change OR when priceInfo updates
+    if (data.length > 0 && backtestResults && priceInfo.asset1 && priceInfo.asset2) {
       const asset1Info = getAssetInfo(asset1);
       const asset2Info = getAssetInfo(asset2);
       const patterns = detectPatterns(data);
       const prediction = generatePrediction(data, patterns, backtestResults, asset1Info, asset2Info);
+      
+      console.log('Generating prediction:', {
+        lastDiff: priceInfo.asset2.change - priceInfo.asset1.change,
+        minGap: manualThresholds.minGap,
+        meetsGap: Math.abs(priceInfo.asset2.change - priceInfo.asset1.change) >= manualThresholds.minGap,
+        prediction
+      });
+      
       setAlgoAnalysis({
         patterns,
         prediction
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [manualThresholds]);
+  }, [manualThresholds, priceInfo]);
   
   const asset1Info = getAssetInfo(asset1);
   const asset2Info = getAssetInfo(asset2);
@@ -1066,6 +1074,9 @@ function App() {
               }}>
                 <div style={{ fontSize: '13px', color: '#9ca3af', fontWeight: 'bold', marginBottom: '12px' }}>
                   📊 CURRENT METRICS vs REQUIREMENTS (Need ANY 1):
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
+                  Current 24h Gap: {priceInfo.asset1 && priceInfo.asset2 ? Math.abs(priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00'}%
                 </div>
                 <div style={{ display: 'grid', gap: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
