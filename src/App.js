@@ -64,7 +64,116 @@ function App() {
     }
   };
 
-  const detectPatterns = (chartData) => {
+  const detectMarketRegime = (chartData, priceInfo) => {
+    if (!chartData.length || !priceInfo.asset1 || !priceInfo.asset2) return null;
+    
+    // 1. Trend Detection (using last 10 candles)
+    const recentData = chartData.slice(-10);
+    const priceChanges1 = recentData.map(d => d.asset1Daily);
+    const priceChanges2 = recentData.map(d => d.asset2Daily);
+    
+    const avgChange1 = priceChanges1.reduce((sum, val) => sum + val, 0) / priceChanges1.length;
+    const avgChange2 = priceChanges2.reduce((sum, val) => sum + val, 0) / priceChanges2.length;
+    
+    let marketTrend;
+    const combinedAvg = (avgChange1 + avgChange2) / 2;
+    
+    if (combinedAvg > 1) {
+      marketTrend = 'BULL';
+    } else if (combinedAvg < -1) {
+      marketTrend = 'BEAR';
+    } else {
+      marketTrend = 'SIDEWAYS';
+    }
+    
+    // 2. Who Performs Better in Current Regime?
+    let regimeLeader;
+    const recentGaps = recentData.map(d => d.diff);
+    const gapTrend = recentGaps[recentGaps.length - 1] - recentGaps[0];
+    
+    if (marketTrend === 'BULL') {
+      regimeLeader = gapTrend > 0 ? 'ETH' : 'BTC';
+    } else if (marketTrend === 'BEAR') {
+      regimeLeader = gapTrend < 0 ? 'BTC' : 'ETH';
+    } else {
+      regimeLeader = 'NEUTRAL';
+    }
+    
+    // 3. RSI Calculation (14-period)
+    const calculateRSI = (data) => {
+      if (data.length < 14) return 50;
+      const changes = [];
+      for (let i = 1; i < data.length; i++) {
+        changes.push(data[i] - data[i-1]);
+      }
+      const gains = changes.map(c => c > 0 ? c : 0);
+      const losses = changes.map(c => c < 0 ? Math.abs(c) : 0);
+      const avgGain = gains.slice(-14).reduce((sum, val) => sum + val, 0) / 14;
+      const avgLoss = losses.slice(-14).reduce((sum, val) => sum + val, 0) / 14;
+      if (avgLoss === 0) return 100;
+      const rs = avgGain / avgLoss;
+      return 100 - (100 / (1 + rs));
+    };
+    
+    const asset1Prices = chartData.map(d => d.asset1Daily);
+    const asset2Prices = chartData.map(d => d.asset2Daily);
+    const rsi1 = calculateRSI(asset1Prices);
+    const rsi2 = calculateRSI(asset2Prices);
+    
+    let asset1Condition, asset2Condition;
+    
+    if (rsi1 < 30) asset1Condition = 'OVERSOLD';
+    else if (rsi1 > 70) asset1Condition = 'OVERBOUGHT';
+    else asset1Condition = 'NEUTRAL';
+    
+    if (rsi2 < 30) asset2Condition = 'OVERSOLD';
+    else if (rsi2 > 70) asset2Condition = 'OVERBOUGHT';
+    else asset2Condition = 'NEUTRAL';
+    
+    // 4. Support/Resistance Detection
+    const allGaps = chartData.map(d => d.diff);
+    const sortedGaps = [...allGaps].sort((a, b) => a - b);
+    const q1 = sortedGaps[Math.floor(sortedGaps.length * 0.25)];
+    const q3 = sortedGaps[Math.floor(sortedGaps.length * 0.75)];
+    const currentGap = priceInfo.asset2.change - priceInfo.asset1.change;
+    
+    let supportResistance;
+    if (currentGap <= q1) {
+      supportResistance = 'AT_SUPPORT';
+    } else if (currentGap >= q3) {
+      supportResistance = 'AT_RESISTANCE';
+    } else {
+      supportResistance = 'MIDDLE_RANGE';
+    }
+    
+    // 5. Volatility Regime
+    const recentVol = recentData.slice(-5).map(d => Math.abs(d.diff));
+    const historicalVol = chartData.slice(0, -5).map(d => Math.abs(d.diff));
+    const avgRecentVol = recentVol.reduce((sum, val) => sum + val, 0) / recentVol.length;
+    const avgHistoricalVol = historicalVol.reduce((sum, val) => sum + val, 0) / historicalVol.length;
+    
+    let volatilityRegime;
+    if (avgRecentVol > avgHistoricalVol * 1.5) {
+      volatilityRegime = 'HIGH';
+    } else if (avgRecentVol < avgHistoricalVol * 0.7) {
+      volatilityRegime = 'LOW';
+    } else {
+      volatilityRegime = 'NORMAL';
+    }
+    
+    return {
+      marketTrend,
+      regimeLeader,
+      asset1RSI: rsi1.toFixed(1),
+      asset2RSI: rsi2.toFixed(1),
+      asset1Condition,
+      asset2Condition,
+      supportResistance,
+      volatilityRegime,
+      avgChange1: avgChange1.toFixed(2),
+      avgChange2: avgChange2.toFixed(2)
+    };
+  };
     if (chartData.length < 10) return [];
     
     const patterns = [];
@@ -204,8 +313,8 @@ function App() {
     };
   };
 
-  const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info) => {
-    if (!chartData.length || !patterns.length || !backtestResults) return null;
+  const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info, marketRegime) => {
+    if (!chartData.length || !patterns.length || !backtestResults || !marketRegime) return null;
     
     // Use 24h gap instead of chart data gap
     const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change) : 0;
@@ -238,6 +347,76 @@ function App() {
     const meetsProfitFactor = profitFactor >= minProfitFactor;
     const meetsGap = Math.abs(lastDiff) >= minGap;
     const isProfitable = expectedValue > 0;
+    
+    // ENHANCED: Adjust confidence based on market regime
+    let regimeAdjustment = 0;
+    let regimeWarnings = [];
+    
+    // 1. Market Trend Analysis
+    if (marketRegime.marketTrend === 'BULL') {
+      // In bull markets, ETH typically outperforms
+      if (lastDiff > 0) {
+        regimeAdjustment -= 10; // Gap favoring ETH in bull = may continue
+        regimeWarnings.push('Bull market: ETH tends to outperform, current gap may persist');
+      } else {
+        regimeAdjustment += 10; // Gap favoring BTC in bull = strong reversion signal
+        regimeWarnings.push('Bull market: BTC ahead is unusual, strong mean reversion expected');
+      }
+    } else if (marketRegime.marketTrend === 'BEAR') {
+      // In bear markets, BTC typically outperforms (loses less)
+      if (lastDiff < 0) {
+        regimeAdjustment -= 10; // Gap favoring BTC in bear = may continue
+        regimeWarnings.push('Bear market: BTC tends to hold better, current gap may persist');
+      } else {
+        regimeAdjustment += 10; // Gap favoring ETH in bear = strong reversion signal
+        regimeWarnings.push('Bear market: ETH ahead is unusual, strong mean reversion expected');
+      }
+    }
+    
+    // 2. RSI / Overbought-Oversold Analysis
+    if (marketRegime.asset1Condition === 'OVERSOLD') {
+      regimeAdjustment += 5; // BTC oversold = likely to bounce
+      regimeWarnings.push(`${asset1Info.symbol} is oversold (RSI: ${marketRegime.asset1RSI}), bounce likely`);
+    } else if (marketRegime.asset1Condition === 'OVERBOUGHT') {
+      regimeAdjustment -= 5;
+      regimeWarnings.push(`${asset1Info.symbol} is overbought (RSI: ${marketRegime.asset1RSI}), pullback likely`);
+    }
+    
+    if (marketRegime.asset2Condition === 'OVERSOLD') {
+      regimeAdjustment -= 5; // ETH oversold = likely to bounce
+      regimeWarnings.push(`${asset2Info.symbol} is oversold (RSI: ${marketRegime.asset2RSI}), bounce likely`);
+    } else if (marketRegime.asset2Condition === 'OVERBOUGHT') {
+      regimeAdjustment += 5;
+      regimeWarnings.push(`${asset2Info.symbol} is overbought (RSI: ${marketRegime.asset2RSI}), pullback likely`);
+    }
+    
+    // 3. Support/Resistance Analysis
+    if (marketRegime.supportResistance === 'AT_SUPPORT') {
+      if (lastDiff < 0) {
+        regimeAdjustment += 10; // At support with BTC ahead = strong bounce signal
+        regimeWarnings.push('Gap at historical support level, strong bounce expected');
+      } else {
+        regimeAdjustment -= 5; // At support with ETH ahead = may bounce more
+        regimeWarnings.push('Gap at support, but counter-trend to mean reversion');
+      }
+    } else if (marketRegime.supportResistance === 'AT_RESISTANCE') {
+      if (lastDiff > 0) {
+        regimeAdjustment += 10; // At resistance with ETH ahead = strong reversal signal
+        regimeWarnings.push('Gap at historical resistance level, reversal likely');
+      } else {
+        regimeAdjustment -= 5;
+        regimeWarnings.push('Gap at resistance, but counter-trend to mean reversion');
+      }
+    }
+    
+    // 4. Volatility Regime
+    if (marketRegime.volatilityRegime === 'HIGH') {
+      regimeAdjustment -= 15; // High vol = less reliable mean reversion
+      regimeWarnings.push('High volatility environment, mean reversion less reliable');
+    } else if (marketRegime.volatilityRegime === 'LOW') {
+      regimeAdjustment += 10; // Low vol = more reliable mean reversion
+      regimeWarnings.push('Low volatility environment, mean reversion more reliable');
+    }
     
     let action, targetAsset, perpetualAction, confidence, reasoning, strategy, entryPrice, stopLoss, takeProfit, pairsTrade, autoThresholds;
     
@@ -293,7 +472,8 @@ function App() {
           targetGap: (lastDiff - (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
           expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
         };
-        confidence = Math.min(60 + (meetsWinRate ? 15 : 0) + (meetsProfitFactor ? 15 : 0) + (meetsGap ? 10 : 0), 100);
+        confidence = Math.min(60 + (meetsWinRate ? 15 : 0) + (meetsProfitFactor ? 15 : 0) + (meetsGap ? 10 : 0) + regimeAdjustment, 100);
+        confidence = Math.max(confidence, 0); // Ensure non-negative
       } else {
         // BTC is outperforming ETH (negative gap)
         // Pairs Trade: LONG ETH + SHORT BTC (expecting ETH to catch up)
@@ -312,7 +492,8 @@ function App() {
           targetGap: (lastDiff + (Math.abs(lastDiff - mean) * 0.6)).toFixed(2),
           expectedProfit: (Math.abs(lastDiff - mean) * 0.6).toFixed(2)
         };
-        confidence = Math.min(60 + (meetsWinRate ? 15 : 0) + (meetsProfitFactor ? 15 : 0) + (meetsGap ? 10 : 0), 100);
+        confidence = Math.min(60 + (meetsWinRate ? 15 : 0) + (meetsProfitFactor ? 15 : 0) + (meetsGap ? 10 : 0) + regimeAdjustment, 100);
+        confidence = Math.max(confidence, 0); // Ensure non-negative
       }
     }
     
@@ -354,7 +535,9 @@ function App() {
       patterns: patterns.map(function(p) { return p.type; }),
       timeHorizon: interval === '1m' || interval === '5m' ? 'Very Short (Minutes)' : 
                    interval === '15m' || interval === '30m' ? 'Short (Hours)' :
-                   interval === '1h' || interval === '2h' || interval === '4h' ? 'Medium (Hours-Days)' : 'Long (Days-Weeks)'
+                   interval === '1h' || interval === '2h' || interval === '4h' ? 'Medium (Hours-Days)' : 'Long (Days-Weeks)',
+      regimeAdjustment: regimeAdjustment,
+      regimeWarnings: regimeWarnings
     };
   };
 
@@ -466,13 +649,31 @@ function App() {
 
       setData(chartData);
       
+      const marketRegime = detectMarketRegime(chartData, {
+        asset1: {
+          current: currentPrice1,
+          previous: prevDayClose1,
+          startPrice: firstPrice1,
+          change: change24h1,
+          changeTimeframe: changeTimeframe1
+        },
+        asset2: {
+          current: currentPrice2,
+          previous: prevDayClose2,
+          startPrice: firstPrice2,
+          change: change24h2,
+          changeTimeframe: changeTimeframe2
+        }
+      });
+      
       const patterns = detectPatterns(chartData);
       const backtest = runBacktest(chartData);
-      const prediction = generatePrediction(chartData, patterns, backtest, asset1Info, asset2Info);
+      const prediction = generatePrediction(chartData, patterns, backtest, asset1Info, asset2Info, marketRegime);
       
       setAlgoAnalysis({
         patterns,
-        prediction
+        prediction,
+        marketRegime
       });
       setBacktestResults(backtest);
       
@@ -493,19 +694,23 @@ function App() {
     if (data.length > 0 && backtestResults && priceInfo.asset1 && priceInfo.asset2) {
       const asset1Info = getAssetInfo(asset1);
       const asset2Info = getAssetInfo(asset2);
+      
+      const marketRegime = detectMarketRegime(data, priceInfo);
       const patterns = detectPatterns(data);
-      const prediction = generatePrediction(data, patterns, backtestResults, asset1Info, asset2Info);
+      const prediction = generatePrediction(data, patterns, backtestResults, asset1Info, asset2Info, marketRegime);
       
       console.log('Generating prediction:', {
         lastDiff: priceInfo.asset2.change - priceInfo.asset1.change,
         minGap: manualThresholds.minGap,
         meetsGap: Math.abs(priceInfo.asset2.change - priceInfo.asset1.change) >= manualThresholds.minGap,
+        marketRegime,
         prediction
       });
       
       setAlgoAnalysis({
         patterns,
-        prediction
+        prediction,
+        marketRegime
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -847,6 +1052,28 @@ function App() {
                     <div style={{ marginTop: '12px', fontSize: '14px', color: '#9ca3af' }}>
                       ⏱️ Time Horizon: {algoAnalysis.prediction.timeHorizon}
                     </div>
+                    
+                    {algoAnalysis.prediction.regimeWarnings && algoAnalysis.prediction.regimeWarnings.length > 0 && (
+                      <div style={{ 
+                        marginTop: '16px',
+                        padding: '12px',
+                        backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                        borderRadius: '8px',
+                        borderLeft: '3px solid #3b82f6'
+                      }}>
+                        <div style={{ fontSize: '13px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '8px' }}>
+                          🔍 Market Context Analysis:
+                        </div>
+                        {algoAnalysis.prediction.regimeWarnings.map((warning, idx) => (
+                          <div key={idx} style={{ fontSize: '12px', color: '#93c5fd', marginBottom: '4px' }}>
+                            • {warning}
+                          </div>
+                        ))}
+                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '8px' }}>
+                          Confidence adjusted by {algoAnalysis.prediction.regimeAdjustment >= 0 ? '+' : ''}{algoAnalysis.prediction.regimeAdjustment}% based on market conditions
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -901,7 +1128,104 @@ function App() {
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    {backtestResults && (
+                    {algoAnalysis && algoAnalysis.marketRegime && (
+          <div style={{
+            backgroundColor: '#1f2937',
+            borderLeft: '1px solid #374151',
+            borderRight: '1px solid #374151',
+            padding: '24px'
+          }}>
+            <div style={{
+              borderRadius: '12px',
+              padding: '20px',
+              backgroundColor: 'rgba(139, 92, 246, 0.1)',
+              border: '1px solid rgba(139, 92, 246, 0.3)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <TrendingUp size={24} color="#a78bfa" />
+                <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>Market Regime Analysis</h3>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Market Trend</div>
+                  <div style={{ 
+                    fontSize: '24px', 
+                    fontWeight: 'bold', 
+                    color: algoAnalysis.marketRegime.marketTrend === 'BULL' ? '#34d399' : algoAnalysis.marketRegime.marketTrend === 'BEAR' ? '#f87171' : '#fbbf24'
+                  }}>
+                    {algoAnalysis.marketRegime.marketTrend}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
+                    {asset1Info.symbol}: {algoAnalysis.marketRegime.avgChange1}% | {asset2Info.symbol}: {algoAnalysis.marketRegime.avgChange2}%
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Regime Leader</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#a78bfa' }}>
+                    {algoAnalysis.marketRegime.regimeLeader}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
+                    {algoAnalysis.marketRegime.marketTrend !== 'SIDEWAYS' ? `Typically outperforms in ${algoAnalysis.marketRegime.marketTrend.toLowerCase()}` : 'Neutral market'}
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>RSI Indicators</div>
+                  <div style={{ fontSize: '14px', color: '#d1d5db', marginTop: '8px' }}>
+                    <div style={{ marginBottom: '4px' }}>
+                      {asset1Info.symbol}: <span style={{ 
+                        fontWeight: 'bold',
+                        color: algoAnalysis.marketRegime.asset1Condition === 'OVERSOLD' ? '#34d399' : algoAnalysis.marketRegime.asset1Condition === 'OVERBOUGHT' ? '#f87171' : '#9ca3af'
+                      }}>
+                        {algoAnalysis.marketRegime.asset1RSI} ({algoAnalysis.marketRegime.asset1Condition})
+                      </span>
+                    </div>
+                    <div>
+                      {asset2Info.symbol}: <span style={{ 
+                        fontWeight: 'bold',
+                        color: algoAnalysis.marketRegime.asset2Condition === 'OVERSOLD' ? '#34d399' : algoAnalysis.marketRegime.asset2Condition === 'OVERBOUGHT' ? '#f87171' : '#9ca3af'
+                      }}>
+                        {algoAnalysis.marketRegime.asset2RSI} ({algoAnalysis.marketRegime.asset2Condition})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Gap Level</div>
+                  <div style={{ 
+                    fontSize: '20px', 
+                    fontWeight: 'bold', 
+                    color: algoAnalysis.marketRegime.supportResistance === 'AT_SUPPORT' ? '#34d399' : algoAnalysis.marketRegime.supportResistance === 'AT_RESISTANCE' ? '#f87171' : '#fbbf24'
+                  }}>
+                    {algoAnalysis.marketRegime.supportResistance.replace(/_/g, ' ')}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
+                    {algoAnalysis.marketRegime.supportResistance === 'AT_SUPPORT' ? 'Strong bounce zone' : algoAnalysis.marketRegime.supportResistance === 'AT_RESISTANCE' ? 'Reversal zone' : 'Normal range'}
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Volatility Regime</div>
+                  <div style={{ 
+                    fontSize: '24px', 
+                    fontWeight: 'bold', 
+                    color: algoAnalysis.marketRegime.volatilityRegime === 'HIGH' ? '#f87171' : algoAnalysis.marketRegime.volatilityRegime === 'LOW' ? '#34d399' : '#fbbf24'
+                  }}>
+                    {algoAnalysis.marketRegime.volatilityRegime}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
+                    {algoAnalysis.marketRegime.volatilityRegime === 'HIGH' ? 'Less reliable signals' : algoAnalysis.marketRegime.volatilityRegime === 'LOW' ? 'More reliable signals' : 'Normal conditions'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {backtestResults && (
           <div style={{
             backgroundColor: '#1f2937',
             borderLeft: '1px solid #374151',
