@@ -203,32 +203,26 @@ function App() {
       recentTrades: trades.slice(-10)
     };
   };
+
   const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info) => {
     if (!chartData.length || !patterns.length || !backtestResults) return null;
     
-    // Use TIMEFRAME gap for prediction (matches displayed cards)
-const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) : 0;
+    const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) : 0;
     
-    // Only proceed if priceInfo is available
     if (!priceInfo.asset1 || !priceInfo.asset2) return null;
     
     const diffs = chartData.map(d => d.diff);
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
     const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
     
-    // DYNAMIC THRESHOLD CALCULATION based on backtest performance
     const avgWin = parseFloat(backtestResults.avgWin);
     const avgLoss = parseFloat(backtestResults.avgLoss);
     const winRate = parseFloat(backtestResults.winRate) / 100;
     const profitFactor = parseFloat(backtestResults.profitFactor);
     
-    // Assume 0.15% total fees per pairs trade
     const feePerTrade = 0.15;
-    
-    // Expected value per trade
     const expectedValue = (winRate * avgWin) - ((1 - winRate) * avgLoss) - feePerTrade;
     
-    // Use manual thresholds set by user
     const minWinRate = manualThresholds.minWinRate;
     const minProfitFactor = manualThresholds.minProfitFactor;
     const minGap = manualThresholds.minGap;
@@ -252,7 +246,6 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
       meetsGap
     };
     
-    // Trade if ANY ONE criteria is met (OR logic instead of AND)
     const meetsAnyCriteria = meetsWinRate || meetsProfitFactor || meetsGap;
     
     if (!meetsAnyCriteria) {
@@ -273,10 +266,7 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
       pairsTrade = null;
       confidence = 0;
     } else {
-      // At least ONE criteria is met - generate trade signal based on gap direction
       if (lastDiff > 0) {
-        // ETH is outperforming BTC (positive gap)
-        // Pairs Trade: LONG BTC + SHORT ETH (expecting BTC to catch up)
         action = 'PAIRS';
         targetAsset = asset1Info.symbol;
         perpetualAction = `PAIRS TRADE`;
@@ -294,8 +284,6 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
         };
         confidence = Math.min(60 + (meetsWinRate ? 15 : 0) + (meetsProfitFactor ? 15 : 0) + (meetsGap ? 10 : 0), 100);
       } else {
-        // BTC is outperforming ETH (negative gap)
-        // Pairs Trade: LONG ETH + SHORT BTC (expecting ETH to catch up)
         action = 'PAIRS';
         targetAsset = asset2Info.symbol;
         perpetualAction = `PAIRS TRADE`;
@@ -357,6 +345,9 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
     };
   };
 
+// END OF PART 1 - Continue with Part 2
+// PART 2 - Continue from Part 1
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
@@ -389,13 +380,11 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
       const chartData = [];
       const minLength = Math.min(data1.length, data2.length);
       
-      // Get the first and current prices for the selected timeframe
       const firstPrice1 = parseFloat(data1[0][4]);
       const firstPrice2 = parseFloat(data2[0][4]);
       const currentPrice1 = parseFloat(data1[data1.length - 1][4]);
       const currentPrice2 = parseFloat(data2[data2.length - 1][4]);
       
-      // Fetch 24h data (1 day ago) using separate API call
       const fetchUrl1_24h = `https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=1d&limit=2`;
       const fetchUrl2_24h = `https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=1d&limit=2`;
       
@@ -407,15 +396,12 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
       const data1_24h = await response1_24h.json();
       const data2_24h = await response2_24h.json();
       
-      // Get previous day close (close of day before current day)
       const prevDayClose1 = data1_24h.length >= 2 ? parseFloat(data1_24h[data1_24h.length - 2][4]) : firstPrice1;
       const prevDayClose2 = data2_24h.length >= 2 ? parseFloat(data2_24h[data2_24h.length - 2][4]) : firstPrice2;
       
-      // Calculate 24h changes based on previous day close
       const change24h1 = ((currentPrice1 - prevDayClose1) / prevDayClose1) * 100;
       const change24h2 = ((currentPrice2 - prevDayClose2) / prevDayClose2) * 100;
       
-      // Calculate timeframe changes
       const changeTimeframe1 = ((currentPrice1 - firstPrice1) / firstPrice1) * 100;
       const changeTimeframe2 = ((currentPrice2 - firstPrice2) / firstPrice2) * 100;
       
@@ -483,30 +469,20 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe, interval, asset1, asset2]);
 
   useEffect(() => {
-    // Regenerate prediction when thresholds change OR when priceInfo updates
     if (data.length > 0 && backtestResults && priceInfo.asset1 && priceInfo.asset2) {
       const asset1Info = getAssetInfo(asset1);
       const asset2Info = getAssetInfo(asset2);
       const patterns = detectPatterns(data);
       const prediction = generatePrediction(data, patterns, backtestResults, asset1Info, asset2Info);
       
-      console.log('Generating prediction:', {
-        lastDiff: priceInfo.asset2.change - priceInfo.asset1.change,
-        minGap: manualThresholds.minGap,
-        meetsGap: Math.abs(priceInfo.asset2.change - priceInfo.asset1.change) >= manualThresholds.minGap,
-        prediction
-      });
-      
       setAlgoAnalysis({
         patterns,
         prediction
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manualThresholds, priceInfo]);
   
   const asset1Info = getAssetInfo(asset1);
@@ -567,6 +543,9 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
   const avgAsset1 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset1Daily, 0) / data.length).toFixed(2) : 0;
   const avgAsset2 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset2Daily, 0) / data.length).toFixed(2) : 0;
   const avgDiff = data.length > 0 ? (data.reduce((sum, d) => sum + d.diff, 0) / data.length).toFixed(2) : 0;
+
+// END OF PART 2 - Continue with Part 3 (return statement / JSX)
+// PART 3a - Return statement start (continues from Part 2)
 
   return (
     <div style={{ 
@@ -849,6 +828,10 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
                 </div>
               </div>
             </div>
+
+// END OF PART 3a - Continue with Part 3b
+// PART 3b - Continues from Part 3a
+
             <div style={{
               backgroundColor: '#1f2937',
               borderLeft: '1px solid #374151',
@@ -1029,7 +1012,10 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
                       color: data.length > 0 && Math.abs(data[data.length - 1].diff) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0) ? '#34d399' : '#f87171',
                       fontWeight: 'bold'
                     }}>
-                      {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}% {data.length > 0 && Math.abs(data[data.length - 1].diff) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0) ? '✅' : `❌ (need ${algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0}%+)`}
+                      {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}% {data.length > 0 && Math.abs(data[data.
+                      // PART 3c - Continues from Part 3b (Mean Reversion Analysis section with THE FIX)
+
+                    {data.length > 0 ? Math.abs(data[data.length - 1].diff).toFixed(2) : '0.00'}% {data.length > 0 && Math.abs(data[data.length - 1].diff) >= parseFloat(algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0) ? '✅' : `❌ (need ${algoAnalysis?.prediction?.autoThresholds?.minGap || 1.0}%+)`}
                     </span>
                   </div>
                 </div>
@@ -1093,10 +1079,11 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
                   <div style={{ fontSize: '12px', color: '#fcd34d', marginTop: '4px' }}>Current vs average</div>
                 </div>
 
+                {/* THIS IS THE FIXED CARD - Now uses algoAnalysis.prediction.targetGap */}
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
                   <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Expected Gap Target</div>
                   <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#a78bfa' }}>
-                    {avgDiff}%
+                    {algoAnalysis?.prediction?.targetGap || avgDiff}%
                   </div>
                   <div style={{ fontSize: '12px', color: '#c4b5fd', marginTop: '4px' }}>Mean reversion target</div>
                 </div>
@@ -1120,6 +1107,10 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
             </div>
           </div>
         )}
+
+// END OF PART 3c - Continue with Part 3d
+// PART 3d - Continues from Part 3c (Backtest Performance through Manual Thresholds)
+
         {backtestResults && (
           <div style={{
             backgroundColor: '#1f2937',
@@ -1298,6 +1289,10 @@ const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change
               <p style={{ color: '#fecaca', fontSize: '14px' }}>{error}</p>
             </div>
           )}
+
+// END OF PART 3d - Continue with Part 3e (final)
+// PART 3e - FINAL (Asset selectors, price cards, timeframe buttons, charts, closing)
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '16px' }}>
             <div>
               <label style={{ color: '#9ca3af', fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
