@@ -209,6 +209,10 @@ function App() {
     
     // Use 24h gap instead of chart data gap
     const lastDiff = priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change) : 0;
+    
+    // Only proceed if priceInfo is available
+    if (!priceInfo.asset1 || !priceInfo.asset2) return null;
+    
     const diffs = chartData.map(d => d.diff);
     const mean = diffs.reduce((sum, val) => sum + val, 0) / diffs.length;
     const stdDev = Math.sqrt(diffs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / diffs.length);
