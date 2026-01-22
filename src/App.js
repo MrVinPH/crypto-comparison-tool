@@ -210,7 +210,7 @@ export default function App() {
       if (cur > mean + th * std) { pnl = cur - nxt; sig = 'SHORT_GAP'; }
       else if (cur < mean - th * std) { pnl = nxt - cur; sig = 'LONG_GAP'; }
       if (pnl !== null) {
-        tp += pnl; pnl > 0 ? w++ : l++;
+        tp += pnl; if (pnl > 0) { w++; } else { l++; }
         trades.push({ entry: i, signal: sig, entryDiff: cur, exitDiff: nxt, profitLoss: pnl, win: pnl > 0 });
       }
     }
