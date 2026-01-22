@@ -464,12 +464,11 @@ function App() {
     }
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe, interval, asset1, asset2]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (data.length > 0 && backtestResults && priceInfo.asset1 && priceInfo.asset2) {
       const asset1Info = getAssetInfo(asset1);
@@ -482,6 +481,7 @@ function App() {
         prediction
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manualThresholds, priceInfo]);
   
   const asset1Info = getAssetInfo(asset1);
