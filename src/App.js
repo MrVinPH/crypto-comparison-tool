@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { RefreshCw, TrendingUp, Brain, CheckCircle } from 'lucide-react';
+import { RefreshCw, Brain, CheckCircle } from 'lucide-react';
 
 const CRYPTO_OPTIONS = [
   { id: 'BTCUSDT', symbol: 'BTC', name: 'Bitcoin', color: '#f7931a' },
@@ -56,7 +56,9 @@ export default function App() {
   // ML Function 1: Optimal Reversion Factor
   const calcReversionFactor = (chartData) => {
     if (chartData.length < 20) return { factor: 0.6, confidence: 0, samples: 0 };
-    const diffs = chartData.map(d => d.diff), samples = [], lb = 10;
+    const diffs = chartData.map(d => d.diff);
+    const samples = [];
+    const lb = 10;
     for (let i = lb; i < diffs.length - 5; i++) {
       const hist = diffs.slice(i - lb, i);
       const mean = hist.reduce((a, b) => a + b, 0) / hist.length;
@@ -67,7 +69,9 @@ export default function App() {
           const futDev = diffs[i + h] - mean;
           if (Math.abs(dev) > 0.001) {
             const rev = 1 - (futDev / dev);
-            if (rev > -0.5 && rev < 1.5) samples.push({ rev, wt: Math.abs(dev) / std });
+            if (rev > -0.5 && rev < 1.5) {
+              samples.push({ rev: rev, wt: Math.abs(dev) / std });
+            }
           }
         }
       }
@@ -85,21 +89,32 @@ export default function App() {
     if (chartData.length < 30) return { threshold: 1.2, bestWinRate: 0, bestProfitFactor: 0, bestTrades: 0 };
     const diffs = chartData.map(d => d.diff);
     let best = { threshold: 1.2, score: -Infinity, winRate: 0, pf: 0, trades: 0 };
-    for (const th of [0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.5]) {
+    const thresholds = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.5];
+    for (let t = 0; t < thresholds.length; t++) {
+      const th = thresholds[t];
       let w = 0, l = 0, tp = 0, tl = 0;
       for (let i = 10; i < diffs.length - 1; i++) {
         const hist = diffs.slice(i - 10, i);
         const mean = hist.reduce((a, b) => a + b, 0) / 10;
         const std = Math.sqrt(hist.reduce((s, v) => s + (v - mean) ** 2, 0) / 10);
-        const cur = diffs[i], nxt = diffs[i + 1];
-        if (cur > mean + th * std) { const pnl = cur - nxt; pnl > 0 ? (w++, tp += pnl) : (l++, tl += Math.abs(pnl)); }
-        else if (cur < mean - th * std) { const pnl = nxt - cur; pnl > 0 ? (w++, tp += pnl) : (l++, tl += Math.abs(pnl)); }
+        const cur = diffs[i];
+        const nxt = diffs[i + 1];
+        if (cur > mean + th * std) {
+          const pnl = cur - nxt;
+          if (pnl > 0) { w = w + 1; tp = tp + pnl; } else { l = l + 1; tl = tl + Math.abs(pnl); }
+        } else if (cur < mean - th * std) {
+          const pnl = nxt - cur;
+          if (pnl > 0) { w = w + 1; tp = tp + pnl; } else { l = l + 1; tl = tl + Math.abs(pnl); }
+        }
       }
       const tot = w + l;
       if (tot >= 3) {
-        const wr = w / tot, pf = tl > 0 ? tp / tl : tp > 0 ? 10 : 0;
+        const wr = w / tot;
+        const pf = tl > 0 ? tp / tl : (tp > 0 ? 10 : 0);
         const score = wr * 40 + Math.min(pf, 3) * 20 + Math.min(tot, 20) * 2;
-        if (score > best.score) best = { threshold: th, score, winRate: (wr * 100).toFixed(1), pf: pf.toFixed(2), trades: tot };
+        if (score > best.score) {
+          best = { threshold: th, score: score, winRate: (wr * 100).toFixed(1), pf: pf.toFixed(2), trades: tot };
+        }
       }
     }
     return { threshold: best.threshold, bestWinRate: best.winRate, bestProfitFactor: best.pf, bestTrades: best.trades };
@@ -108,8 +123,11 @@ export default function App() {
   // ML Function 3: Optimal Holding Period
   const calcHoldingPeriod = (chartData) => {
     if (chartData.length < 30) return { periods: 1, expectedReturn: 0, winRate: 0 };
-    const diffs = chartData.map(d => d.diff), results = {};
-    for (let p = 1; p <= 5; p++) results[p] = { returns: [], wins: 0, total: 0 };
+    const diffs = chartData.map(d => d.diff);
+    const results = {};
+    for (let p = 1; p <= 5; p++) {
+      results[p] = { returns: [], wins: 0, total: 0 };
+    }
     for (let i = 10; i < diffs.length - 5; i++) {
       const hist = diffs.slice(i - 10, i);
       const mean = hist.reduce((a, b) => a + b, 0) / 10;
@@ -119,8 +137,8 @@ export default function App() {
         for (let p = 1; p <= Math.min(5, diffs.length - i - 1); p++) {
           const pnl = dir * (diffs[i + p] - diffs[i]);
           results[p].returns.push(pnl);
-          results[p].total++;
-          if (pnl > 0) results[p].wins++;
+          results[p].total = results[p].total + 1;
+          if (pnl > 0) { results[p].wins = results[p].wins + 1; }
         }
       }
     }
@@ -140,12 +158,13 @@ export default function App() {
   // ML Function 4: Market Regime Detection
   const detectRegime = (chartData) => {
     if (chartData.length < 20) return { regime: 'UNKNOWN', strength: 0, recommendation: 'Insufficient data', autocorrelation: 0, hurstEstimate: 0.5 };
-    const diffs = chartData.map(d => d.diff), returns = [];
-    for (let i = 1; i < diffs.length; i++) returns.push(diffs[i] - diffs[i - 1]);
+    const diffs = chartData.map(d => d.diff);
+    const returns = [];
+    for (let i = 1; i < diffs.length; i++) { returns.push(diffs[i] - diffs[i - 1]); }
     const meanRet = returns.reduce((a, b) => a + b, 0) / returns.length;
     let num = 0, den = 0;
-    for (let i = 1; i < returns.length; i++) num += (returns[i] - meanRet) * (returns[i - 1] - meanRet);
-    for (let i = 0; i < returns.length; i++) den += (returns[i] - meanRet) ** 2;
+    for (let i = 1; i < returns.length; i++) { num = num + (returns[i] - meanRet) * (returns[i - 1] - meanRet); }
+    for (let i = 0; i < returns.length; i++) { den = den + (returns[i] - meanRet) ** 2; }
     const autocorr = den !== 0 ? num / den : 0;
     const n = Math.floor(diffs.length / 2);
     const h1 = diffs.slice(0, n), h2 = diffs.slice(n);
@@ -163,24 +182,23 @@ export default function App() {
       regime = 'TRENDING'; strength = Math.min(100, autocorr * 200 + (hurst - 0.5) * 100);
       rec = 'Trending market. Consider momentum strategies.';
     } else { regime = 'NEUTRAL'; strength = 50; rec = 'No clear regime. Use conservative sizing.'; }
-    return { regime, strength: strength.toFixed(1), autocorrelation: autocorr.toFixed(3), hurstEstimate: hurst.toFixed(3), recommendation: rec };
+    return { regime: regime, strength: strength.toFixed(1), autocorrelation: autocorr.toFixed(3), hurstEstimate: hurst.toFixed(3), recommendation: rec };
   };
 
-  // ML Function 5: Calculate Dynamic Thresholds (KEY CHANGE - NO MORE HARDCODED VALUES)
-  const calcMLThresholds = (backtestRes, mlMetrics, chartData) => {
-    if (!backtestRes || !mlMetrics || chartData.length < 10) {
+  // ML Function 5: Calculate Dynamic Thresholds
+  const calcMLThresholds = (backtestRes, mlMet, chartData) => {
+    if (!backtestRes || !mlMet || chartData.length < 10) {
       return { minWinRate: 50, minProfitFactor: 1.0, minGap: 0.5, source: 'DEFAULT' };
     }
     const diffs = chartData.map(d => d.diff);
-    const std = Math.sqrt(diffs.reduce((s, v) => s + (v - diffs.reduce((a, b) => a + b, 0) / diffs.length) ** 2, 0) / diffs.length);
-    // Dynamic thresholds based on ML analysis
-    const mlWinRate = parseFloat(mlMetrics.entryThreshold?.bestWinRate) || 50;
-    const mlPF = parseFloat(mlMetrics.entryThreshold?.bestProfitFactor) || 1.0;
-    // Set thresholds slightly below observed performance to allow trades
-    const minWinRate = Math.max(45, mlWinRate - 10); // Allow 10% below best observed
-    const minProfitFactor = Math.max(0.8, mlPF * 0.7); // Allow 30% below best observed
-    const minGap = Math.max(0.3, std * 0.5); // Use half std dev as minimum gap
-    return { minWinRate, minProfitFactor, minGap: parseFloat(minGap.toFixed(2)), source: 'ML_OPTIMIZED', observedWinRate: mlWinRate, observedPF: mlPF };
+    const mean = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+    const std = Math.sqrt(diffs.reduce((s, v) => s + (v - mean) ** 2, 0) / diffs.length);
+    const mlWinRate = parseFloat(mlMet.entryThreshold?.bestWinRate) || 50;
+    const mlPF = parseFloat(mlMet.entryThreshold?.bestProfitFactor) || 1.0;
+    const minWinRate = Math.max(45, mlWinRate - 10);
+    const minProfitFactor = Math.max(0.8, mlPF * 0.7);
+    const minGap = Math.max(0.3, std * 0.5);
+    return { minWinRate: minWinRate, minProfitFactor: minProfitFactor, minGap: parseFloat(minGap.toFixed(2)), source: 'ML_OPTIMIZED', observedWinRate: mlWinRate, observedPF: mlPF };
   };
 
   // Run ML Analysis
@@ -196,11 +214,12 @@ export default function App() {
     return { reversionFactor: rev, entryThreshold: th, holdingPeriod: hp, marketRegime: reg, overallConfidence: overall.toFixed(1), isMLReady: rev.samples >= 10 && th.bestTrades >= 5 };
   };
 
-  const runBacktest = (chartData, ml = null) => {
+  const runBacktest = (chartData, ml) => {
     if (chartData.length < 20) return null;
     const th = ml?.entryThreshold?.threshold || 1.2;
     const diffs = chartData.map(d => d.diff);
-    let trades = [], w = 0, l = 0, tp = 0;
+    const trades = [];
+    let w = 0, l = 0, tp = 0;
     for (let i = 10; i < chartData.length - 1; i++) {
       const hist = diffs.slice(i - 10, i);
       const mean = hist.reduce((a, b) => a + b, 0) / 10;
@@ -210,14 +229,15 @@ export default function App() {
       if (cur > mean + th * std) { pnl = cur - nxt; sig = 'SHORT_GAP'; }
       else if (cur < mean - th * std) { pnl = nxt - cur; sig = 'LONG_GAP'; }
       if (pnl !== null) {
-        tp += pnl; if (pnl > 0) { w++; } else { l++; }
+        tp = tp + pnl;
+        if (pnl > 0) { w = w + 1; } else { l = l + 1; }
         trades.push({ entry: i, signal: sig, entryDiff: cur, exitDiff: nxt, profitLoss: pnl, win: pnl > 0 });
       }
     }
     const wr = trades.length > 0 ? (w / trades.length) * 100 : 0;
     const avgW = w > 0 ? trades.filter(t => t.win).reduce((s, t) => s + t.profitLoss, 0) / w : 0;
     const avgL = l > 0 ? Math.abs(trades.filter(t => !t.win).reduce((s, t) => s + t.profitLoss, 0) / l) : 0;
-    const pf = avgL > 0 ? (avgW * w) / (avgL * l) : w > 0 ? 999 : 0;
+    const pf = avgL > 0 ? (avgW * w) / (avgL * l) : (w > 0 ? 999 : 0);
     return { totalTrades: trades.length, wins: w, losses: l, winRate: wr.toFixed(1), totalProfit: tp.toFixed(2), avgWin: avgW.toFixed(2), avgLoss: avgL.toFixed(2), profitFactor: pf.toFixed(2), entryThresholdUsed: th };
   };
 
@@ -231,7 +251,6 @@ export default function App() {
     const mlTh = ml?.entryThreshold?.threshold || 1.2;
     const mlHP = ml?.holdingPeriod?.periods || 1;
     const regime = ml?.marketRegime?.regime || 'UNKNOWN';
-    // *** KEY CHANGE: Use ML-calculated dynamic thresholds ***
     const dynTh = calcMLThresholds(backtestRes, ml, chartData);
     const wr = parseFloat(backtestRes.winRate);
     const pf = parseFloat(backtestRes.profitFactor);
@@ -241,30 +260,54 @@ export default function App() {
     const meetsPF = pf >= dynTh.minProfitFactor;
     const meetsGap = Math.abs(lastDiff) >= dynTh.minGap;
     const mlRecommends = regime === 'MEAN_REVERTING' || regime === 'NEUTRAL';
-    // More permissive: require ML recommendation AND at least one threshold OR positive expected value
     const shouldTrade = mlRecommends && (meetsWR || meetsPF || meetsGap || ev > 0);
-    let result = { autoThresholds: { ...dynTh, expectedValue: ev.toFixed(3), meetsWinRate: meetsWR, meetsProfitFactor: meetsPF, meetsGap: meetsGap, actualWinRate: wr, actualPF: pf, actualGap: Math.abs(lastDiff).toFixed(2) } };
+    const autoThresholds = { 
+      minWinRate: dynTh.minWinRate, 
+      minProfitFactor: dynTh.minProfitFactor, 
+      minGap: dynTh.minGap, 
+      expectedValue: ev.toFixed(3), 
+      meetsWinRate: meetsWR, 
+      meetsProfitFactor: meetsPF, 
+      meetsGap: meetsGap, 
+      actualWinRate: wr, 
+      actualPF: pf, 
+      actualGap: Math.abs(lastDiff).toFixed(2) 
+    };
     if (!shouldTrade) {
-      let reasons = [];
-      if (!mlRecommends) reasons.push(`Market regime ${regime} unfavorable`);
-      if (!meetsWR) reasons.push(`WR ${wr}% < ${dynTh.minWinRate.toFixed(0)}%`);
-      if (!meetsPF) reasons.push(`PF ${pf} < ${dynTh.minProfitFactor.toFixed(1)}`);
-      if (!meetsGap) reasons.push(`Gap ${Math.abs(lastDiff).toFixed(2)}% < ${dynTh.minGap}%`);
-      if (ev <= 0) reasons.push(`EV ${ev.toFixed(3)} negative`);
-      return { ...result, action: 'SKIP', perpetualAction: 'NO TRADE', confidence: 0, reasoning: reasons.join(', '), pairsTrade: null };
+      const reasons = [];
+      if (!mlRecommends) { reasons.push('Market regime ' + regime + ' unfavorable'); }
+      if (!meetsWR) { reasons.push('WR ' + wr + '% < ' + dynTh.minWinRate.toFixed(0) + '%'); }
+      if (!meetsPF) { reasons.push('PF ' + pf + ' < ' + dynTh.minProfitFactor.toFixed(1)); }
+      if (!meetsGap) { reasons.push('Gap ' + Math.abs(lastDiff).toFixed(2) + '% < ' + dynTh.minGap + '%'); }
+      if (ev <= 0) { reasons.push('EV ' + ev.toFixed(3) + ' negative'); }
+      return { autoThresholds: autoThresholds, action: 'SKIP', perpetualAction: 'NO TRADE', confidence: 0, reasoning: reasons.join(', '), pairsTrade: null };
     }
     const expMove = lastDiff > mean ? -(Math.abs(lastDiff - mean) * mlRev) : Math.abs(lastDiff - mean) * mlRev;
     const targetGap = lastDiff + expMove;
-    const conf = Math.min(60 + (meetsWR ? 15 : 0) + (meetsPF ? 15 : 0) + (meetsGap ? 10 : 0) + (ev > 0 ? 10 : 0), 100);
-    const long = lastDiff > 0 ? a1Info.symbol : a2Info.symbol;
-    const short = lastDiff > 0 ? a2Info.symbol : a1Info.symbol;
+    let conf = 60;
+    if (meetsWR) { conf = conf + 15; }
+    if (meetsPF) { conf = conf + 15; }
+    if (meetsGap) { conf = conf + 10; }
+    if (ev > 0) { conf = conf + 10; }
+    conf = Math.min(conf, 100);
+    const longAsset = lastDiff > 0 ? a1Info.symbol : a2Info.symbol;
+    const shortAsset = lastDiff > 0 ? a2Info.symbol : a1Info.symbol;
     return {
-      ...result, action: 'PAIRS', perpetualAction: 'PAIRS TRADE', confidence: conf.toFixed(1),
-      reasoning: `ML: ${short} ahead by ${Math.abs(lastDiff).toFixed(2)}%. ${(mlRev * 100).toFixed(0)}% reversion expected. Regime: ${regime}. Entry: ${mlTh}σ. Hold: ${mlHP} bar(s). EV: ${ev.toFixed(3)}`,
-      pairsTrade: { long, short, currentGap: lastDiff.toFixed(2), targetGap: targetGap.toFixed(2), expectedProfit: Math.abs(expMove).toFixed(2), mlReversionFactor: (mlRev * 100).toFixed(0) },
-      currentGap: lastDiff.toFixed(2), targetGap: targetGap.toFixed(2), expectedMove: expMove.toFixed(2),
-      riskLevel: std > 2 ? 'HIGH' : std > 1 ? 'MEDIUM' : 'LOW', volatility: std.toFixed(2),
-      mlReversionFactor: (mlRev * 100).toFixed(0), mlEntryThreshold: mlTh, mlHoldingPeriod: mlHP, marketRegime: regime
+      autoThresholds: autoThresholds, 
+      action: 'PAIRS', 
+      perpetualAction: 'PAIRS TRADE', 
+      confidence: conf.toFixed(1),
+      reasoning: 'ML: ' + shortAsset + ' ahead by ' + Math.abs(lastDiff).toFixed(2) + '%. ' + (mlRev * 100).toFixed(0) + '% reversion expected. Regime: ' + regime + '. Entry: ' + mlTh + 'σ. Hold: ' + mlHP + ' bar(s). EV: ' + ev.toFixed(3),
+      pairsTrade: { long: longAsset, short: shortAsset, currentGap: lastDiff.toFixed(2), targetGap: targetGap.toFixed(2), expectedProfit: Math.abs(expMove).toFixed(2), mlReversionFactor: (mlRev * 100).toFixed(0) },
+      currentGap: lastDiff.toFixed(2), 
+      targetGap: targetGap.toFixed(2), 
+      expectedMove: expMove.toFixed(2),
+      riskLevel: std > 2 ? 'HIGH' : (std > 1 ? 'MEDIUM' : 'LOW'), 
+      volatility: std.toFixed(2),
+      mlReversionFactor: (mlRev * 100).toFixed(0), 
+      mlEntryThreshold: mlTh, 
+      mlHoldingPeriod: mlHP, 
+      marketRegime: regime
     };
   };
 
@@ -272,18 +315,16 @@ export default function App() {
     setLoading(true);
     const a1Info = getAssetInfo(asset1), a2Info = getAssetInfo(asset2);
     try {
-      const { interval: fi, limit } = getTimeframeDetails(timeframe, interval);
-      const [r1, r2] = await Promise.all([
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=${fi}&limit=${limit}`),
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=${fi}&limit=${limit}`)
-      ]);
-      const d1 = await r1.json(), d2 = await r2.json();
+      const details = getTimeframeDetails(timeframe, interval);
+      const fi = details.interval;
+      const limit = details.limit;
+      const res1 = await fetch('https://api.binance.com/api/v3/klines?symbol=' + asset1 + '&interval=' + fi + '&limit=' + limit);
+      const res2 = await fetch('https://api.binance.com/api/v3/klines?symbol=' + asset2 + '&interval=' + fi + '&limit=' + limit);
+      const d1 = await res1.json(), d2 = await res2.json();
       if (!d1.length || !d2.length) throw new Error('No data');
-      const [r1_24, r2_24] = await Promise.all([
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=1d&limit=2`),
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=1d&limit=2`)
-      ]);
-      const d1_24 = await r1_24.json(), d2_24 = await r2_24.json();
+      const res1_24 = await fetch('https://api.binance.com/api/v3/klines?symbol=' + asset1 + '&interval=1d&limit=2');
+      const res2_24 = await fetch('https://api.binance.com/api/v3/klines?symbol=' + asset2 + '&interval=1d&limit=2');
+      const d1_24 = await res1_24.json(), d2_24 = await res2_24.json();
       const sp1 = parseFloat(d1[0][4]), sp2 = parseFloat(d2[0][4]);
       const cp1 = parseFloat(d1[d1.length - 1][4]), cp2 = parseFloat(d2[d2.length - 1][4]);
       const pp1 = d1_24.length >= 2 ? parseFloat(d1_24[d1_24.length - 2][4]) : sp1;
@@ -293,7 +334,7 @@ export default function App() {
         asset2: { current: cp2, previous: pp2, startPrice: sp2, change: ((cp2 - pp2) / pp2) * 100, changeTimeframe: ((cp2 - sp2) / sp2) * 100 }
       });
       const chartData = [], minLen = Math.min(d1.length, d2.length);
-      const dateFormat = limit > 90 ? { month: 'short', day: 'numeric' } : fi.includes('m') || fi.includes('h') ? { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' } : { month: 'short', day: 'numeric' };
+      const dateFormat = limit > 90 ? { month: 'short', day: 'numeric' } : (fi.includes('m') || fi.includes('h') ? { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' } : { month: 'short', day: 'numeric' });
       for (let i = 0; i < minLen; i++) {
         const c1 = parseFloat(d1[i][4]), c2 = parseFloat(d2[i][4]);
         const ch1 = ((c1 - sp1) / sp1) * 100, ch2 = ((c2 - sp2) / sp2) * 100;
@@ -306,11 +347,17 @@ export default function App() {
       setBacktestResults(bt);
       const pred = generatePrediction(chartData, bt, a1Info, a2Info, ml);
       setAlgoAnalysis({ prediction: pred });
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    } catch (err) { 
+      console.error(err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  useEffect(() => { loadData(); }, [timeframe, interval, asset1, asset2]);
+  useEffect(() => { 
+    loadData(); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeframe, interval, asset1, asset2]);
 
   useEffect(() => {
     if (data.length > 0 && backtestResults && priceInfo.asset1 && priceInfo.asset2) {
@@ -319,17 +366,30 @@ export default function App() {
       const pred = generatePrediction(data, backtestResults, getAssetInfo(asset1), getAssetInfo(asset2), ml);
       setAlgoAnalysis({ prediction: pred });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priceInfo]);
 
   const a1Info = getAssetInfo(asset1), a2Info = getAssetInfo(asset2);
   const avgDiff = data.length > 0 ? (data.reduce((s, d) => s + d.diff, 0) / data.length).toFixed(2) : 0;
-  const CustomTooltip = ({ active, payload }) => active && payload?.length ? (
-    <div style={{ backgroundColor: 'white', padding: '12px', border: '1px solid #ccc', borderRadius: '8px' }}>
-      <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>{payload[0].payload.date}</p>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: a1Info.color }} /><span>{a1Info.symbol}: {payload[0].value}%</span></div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: a2Info.color }} /><span>{a2Info.symbol}: {payload[1].value}%</span></div>
-    </div>
-  ) : null;
+  
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{ backgroundColor: 'white', padding: '12px', border: '1px solid #ccc', borderRadius: '8px' }}>
+          <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>{payload[0].payload.date}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: a1Info.color }}></div>
+            <span>{a1Info.symbol}: {payload[0].value}%</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: a2Info.color }}></div>
+            <span>{a2Info.symbol}: {payload[1].value}%</span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: 'linear-gradient(to bottom right, #1f2937, #111827)', padding: '16px' }}>
@@ -340,10 +400,14 @@ export default function App() {
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: 'white', margin: 0 }}>ML-Powered Crypto Analysis</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
               <span style={{ fontSize: '13px', color: '#9ca3af' }}>Dynamic Thresholds</span>
-              <span style={{ padding: '2px 8px', backgroundColor: '#8b5cf6', color: '#e9d5ff', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px' }}><Brain size={10} style={{ display: 'inline', marginRight: '4px' }} />ML ACTIVE</span>
+              <span style={{ padding: '2px 8px', backgroundColor: '#8b5cf6', color: '#e9d5ff', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Brain size={10} />ML ACTIVE
+              </span>
             </div>
           </div>
-          <button onClick={loadData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: loading ? '#4b5563' : '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: loading ? 'not-allowed' : 'pointer' }}><RefreshCw size={14} />Refresh</button>
+          <button onClick={loadData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: loading ? '#4b5563' : '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: loading ? 'not-allowed' : 'pointer' }}>
+            <RefreshCw size={14} />Refresh
+          </button>
         </div>
 
         {/* ML Metrics */}
@@ -376,7 +440,7 @@ export default function App() {
                 </div>
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '6px' }}>
                   <div style={{ fontSize: '10px', color: '#9ca3af' }}>📈 Regime</div>
-                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: mlMetrics.marketRegime?.regime === 'MEAN_REVERTING' ? '#34d399' : mlMetrics.marketRegime?.regime === 'TRENDING' ? '#f87171' : '#fbbf24' }}>{mlMetrics.marketRegime?.regime?.replace('_', ' ')}</div>
+                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: mlMetrics.marketRegime?.regime === 'MEAN_REVERTING' ? '#34d399' : (mlMetrics.marketRegime?.regime === 'TRENDING' ? '#f87171' : '#fbbf24') }}>{mlMetrics.marketRegime?.regime?.replace('_', ' ')}</div>
                 </div>
               </div>
             </div>
@@ -536,7 +600,9 @@ export default function App() {
         {/* Charts */}
         <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', padding: '20px' }}>
           <h2 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '14px' }}>Asset Performance</h2>
-          {loading ? <div style={{ height: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>Loading...</div> : (
+          {loading ? (
+            <div style={{ height: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>Loading...</div>
+          ) : (
             <ResponsiveContainer width="100%" height={350}>
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -553,7 +619,9 @@ export default function App() {
 
         <div style={{ backgroundColor: '#1f2937', borderLeft: '1px solid #374151', borderRight: '1px solid #374151', borderBottom: '1px solid #374151', borderRadius: '0 0 12px 12px', padding: '20px' }}>
           <h2 style={{ color: 'white', fontSize: '18px', fontWeight: 'bold', marginBottom: '14px' }}>Gap Analysis (Mean: {avgDiff}%)</h2>
-          {loading ? <div style={{ height: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>Loading...</div> : (
+          {loading ? (
+            <div style={{ height: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>Loading...</div>
+          ) : (
             <ResponsiveContainer width="100%" height={350}>
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -561,7 +629,7 @@ export default function App() {
                 <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="diff" stroke="#10b981" strokeWidth={2} name={`Gap (${a2Info.symbol} - ${a1Info.symbol})`} dot={false} />
+                <Line type="monotone" dataKey="diff" stroke="#10b981" strokeWidth={2} name={'Gap (' + a2Info.symbol + ' - ' + a1Info.symbol + ')'} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           )}
