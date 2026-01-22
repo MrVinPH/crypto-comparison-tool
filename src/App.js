@@ -31,7 +31,7 @@ export default function App() {
   const [prediction, setPrediction] = useState(null);
   const [trendData, setTrendData] = useState(null);
   const [mlData, setMlData] = useState(null);
-  const [backtest, setBacktest] = useState(null);
+  const [backtest, setBacktest] = useState(null); // eslint-disable-line no-unused-vars
   const [regimeStats, setRegimeStats] = useState(null);
 
   const getAsset = (id) => CRYPTO_OPTIONS.find(a => a.id === id) || CRYPTO_OPTIONS[0];
@@ -413,6 +413,7 @@ export default function App() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe, interval, asset1, asset2]);
 
   const a1 = getAsset(asset1);
