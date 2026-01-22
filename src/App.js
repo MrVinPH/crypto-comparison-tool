@@ -265,6 +265,7 @@ function App() {
       takeProfit = 'N/A';
       pairsTrade = null;
       confidence = 0;
+    
     } else {
       if (lastDiff > 0) {
         action = 'PAIRS';
