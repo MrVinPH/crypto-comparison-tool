@@ -30,39 +30,60 @@ export default function App() {
   const [asset2, setAsset2] = useState('ETHUSDT');
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState(null);
+  const [dataInfo, setDataInfo] = useState(null);
 
   const getAssetInfo = (id) => CRYPTO_OPTIONS.find(a => a.id === id) || CRYPTO_OPTIONS[0];
 
   const getTimeframeDetails = (tf, intv) => {
-    // Calculate limits based on timeframe and interval
-    const limits = {
-      '1D': { '1h': 24, '4h': 6, '1d': 1 },
-      '7D': { '1h': 168, '4h': 42, '1d': 7, '1w': 1 },
-      '1M': { '1h': 720, '4h': 180, '1d': 30, '1w': 4 },
-      '3M': { '1h': 500, '4h': 540, '1d': 90, '1w': 12 },  // 1h capped at 500
-      '6M': { '4h': 500, '1d': 180, '1w': 26 },  // No 1h for 6M (too many points)
-      'YTD': { '4h': 500, '1d': getDaysYTD(), '1w': Math.ceil(getDaysYTD() / 7) },
-      '1Y': { '4h': 500, '1d': 365, '1w': 52 },
+    // Get interval in hours
+    const intervalHours = {
+      '1h': 1,
+      '4h': 4,
+      '1d': 24,
+      '1w': 168
     };
     
-    // Get the limit for the selected timeframe and interval
-    const tfLimits = limits[tf] || limits['7D'];
-    let limit = tfLimits[intv];
+    const hours = intervalHours[intv] || 24;
     
-    // If selected interval not available for this timeframe, find best alternative
-    if (!limit) {
-      // Fallback priority: 1d > 4h > 1w > 1h
-      limit = tfLimits['1d'] || tfLimits['4h'] || tfLimits['1w'] || tfLimits['1h'] || 30;
+    // Get timeframe in days
+    const getTimeframeDays = (timeframe) => {
+      switch(timeframe) {
+        case '1D': return 1;
+        case '7D': return 7;
+        case '1M': return 30;
+        case '3M': return 90;
+        case '6M': return 180;
+        case 'YTD': return getDaysYTD();
+        case '1Y': return 365;
+        default: return 7;
+      }
+    };
+    
+    const days = getTimeframeDays(tf);
+    const totalHours = days * 24;
+    
+    // Calculate number of bars needed
+    let limit = Math.ceil(totalHours / hours);
+    
+    // Binance API limit is 1000, but we cap at 500 for performance
+    const maxLimit = 500;
+    
+    // If limit exceeds max, suggest a larger interval
+    if (limit > maxLimit) {
+      limit = maxLimit;
     }
     
-    return { interval: intv, limit };
+    // Minimum 10 bars for analysis
+    limit = Math.max(10, limit);
+    
+    return { interval: intv, limit, days, actualDays: Math.floor((limit * hours) / 24) };
   };
   
   // Helper to get days since start of year
   const getDaysYTD = () => {
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1);
-    return Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24));
+    return Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24)) + 1; // +1 to include today
   };
 
   // Detect trend AND potential reversals
@@ -396,7 +417,19 @@ export default function App() {
     const a1 = getAssetInfo(asset1), a2 = getAssetInfo(asset2);
     
     try {
-      const { interval: intv, limit } = getTimeframeDetails(timeframe, interval);
+      const tfDetails = getTimeframeDetails(timeframe, interval);
+      const { interval: intv, limit, days, actualDays } = tfDetails;
+      
+      // Check if data is capped
+      const isCapped = actualDays < days;
+      setDataInfo({ 
+        requestedDays: days, 
+        actualDays, 
+        isCapped, 
+        bars: limit,
+        interval: intv 
+      });
+      
       const [r1, r2] = await Promise.all([
         fetch(`https://api.binance.com/api/v3/klines?symbol=${asset1}&interval=${intv}&limit=${limit}`),
         fetch(`https://api.binance.com/api/v3/klines?symbol=${asset2}&interval=${intv}&limit=${limit}`)
@@ -673,12 +706,43 @@ export default function App() {
 
         {/* Timeframe */}
         <div style={{ background: 'rgba(30, 41, 59, 0.9)', borderLeft: '1px solid rgba(99, 102, 241, 0.3)', borderRight: '1px solid rgba(99, 102, 241, 0.3)', padding: '16px 24px' }}>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: dataInfo?.isCapped ? '12px' : '0' }}>
             <span style={{ color: '#94a3b8', fontSize: '14px', marginRight: '8px' }}>Timeframe:</span>
             {['1D', '7D', '1M', '3M', '6M', 'YTD', '1Y'].map(tf => (
               <button key={tf} onClick={() => setTimeframe(tf)} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', background: timeframe === tf ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#334155', color: 'white', fontWeight: '500', fontSize: '14px' }}>{tf}</button>
             ))}
           </div>
+          
+          {/* Data Info / Warning */}
+          {dataInfo && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              padding: '8px 12px', 
+              background: dataInfo.isCapped ? 'rgba(234, 179, 8, 0.15)' : 'rgba(34, 197, 94, 0.15)', 
+              border: `1px solid ${dataInfo.isCapped ? 'rgba(234, 179, 8, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
+              borderRadius: '8px',
+              fontSize: '12px'
+            }}>
+              {dataInfo.isCapped ? (
+                <>
+                  <span style={{ color: '#fbbf24' }}>⚠️</span>
+                  <span style={{ color: '#fde047' }}>
+                    Data capped: Showing {dataInfo.actualDays} days instead of {dataInfo.requestedDays} days ({dataInfo.bars} bars at {dataInfo.interval} interval). 
+                    <span style={{ color: '#94a3b8' }}> Use a larger interval (1d or 1w) for full {timeframe} data.</span>
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span style={{ color: '#4ade80' }}>✓</span>
+                  <span style={{ color: '#86efac' }}>
+                    Showing {dataInfo.actualDays} days of data ({dataInfo.bars} bars at {dataInfo.interval} interval)
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Chart */}
