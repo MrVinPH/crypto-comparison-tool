@@ -433,7 +433,7 @@ export default function App() {
             <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: '14px' }}>Adapts strategy based on market conditions</p>
             {/* Debug info */}
             <p style={{ color: '#f87171', margin: '4px 0 0', fontSize: '11px' }}>
-              DEBUG: Data points: {data?.length || 0} | Analysis: {analysis ? 'YES' : 'NO'} | MarketTrend method: {analysis?.marketTrend?.method || 'N/A'}
+              DEBUG: Data: {data?.length || 0} | Score: {analysis?.marketTrend?.trendScore || 'N/A'} | Method: {analysis?.marketTrend?.method || 'N/A'} | BTC: {analysis?.marketTrend?.btcChange || 'N/A'}
             </p>
           </div>
           <button onClick={loadData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600' }}>
@@ -448,7 +448,7 @@ export default function App() {
               {isDown ? <TrendingDown size={40} color="#f87171" /> : isUp ? <TrendingUp size={40} color="#4ade80" /> : <AlertTriangle size={40} color="#fbbf24" />}
               <div>
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: isDown ? '#fca5a5' : isUp ? '#86efac' : '#fde047' }}>{analysis.marketTrend.trend.replace('_', ' ')}</div>
-                <div style={{ color: '#e2e8f0', fontSize: '14px' }}>BTC {analysis.marketTrend.btcChange}% | ML Score: {analysis.marketTrend.trendScore || '0'}</div>
+                <div style={{ color: '#e2e8f0', fontSize: '14px' }}>BTC {analysis.marketTrend?.btcChange || '0'}% | ML Score: {analysis.marketTrend?.trendScore || '0'}</div>
               </div>
               <div style={{ marginLeft: 'auto', textAlign: 'right', padding: '12px 20px', background: 'rgba(0,0,0,0.3)', borderRadius: '12px' }}>
                 <div style={{ fontSize: '12px', color: '#94a3b8' }}>Strategy Mode</div>
@@ -492,15 +492,19 @@ export default function App() {
             
             {/* Score Breakdown */}
             <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(0,0,0,0.4)', borderRadius: '8px' }}>
-              <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>📊 ML SCORE BREAKDOWN:</div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>📊 ML SCORE BREAKDOWN (Raw from marketTrend):</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11px' }}>
-                <span style={{ color: '#f87171' }}>BTC({analysis.marketTrend.btcChange}%): <strong>{analysis.marketTrend.scoreBreakdown?.btcComponent || '0'}</strong></span>
-                <span style={{ color: '#fbbf24' }}>+ Mom: <strong>{analysis.marketTrend.scoreBreakdown?.momentumComponent || '0'}</strong></span>
-                <span style={{ color: '#a78bfa' }}>+ ROC: <strong>{analysis.marketTrend.scoreBreakdown?.rocComponent || '0'}</strong></span>
-                <span style={{ color: '#60a5fa' }}>+ MA: <strong>{analysis.marketTrend.scoreBreakdown?.maComponent || '0'}</strong></span>
-                <span style={{ color: '#34d399' }}>+ Accel: <strong>{analysis.marketTrend.scoreBreakdown?.accelComponent || '0'}</strong></span>
-                <span style={{ color: '#f472b6' }}>+ Consec: <strong>{analysis.marketTrend.scoreBreakdown?.consecutiveComponent || '0'}</strong></span>
-                <span style={{ color: '#fff', fontWeight: 'bold' }}>= TOTAL: <span style={{ color: parseFloat(analysis.marketTrend.trendScore) > 0 ? '#4ade80' : '#f87171', fontSize: '14px' }}>{analysis.marketTrend.trendScore || '0'}</span></span>
+                <span style={{ color: '#f87171' }}>BTC({analysis.marketTrend?.btcChange}%): <strong>{analysis.marketTrend?.scoreBreakdown?.btcComponent ?? 'missing'}</strong></span>
+                <span style={{ color: '#fbbf24' }}>+ Mom: <strong>{analysis.marketTrend?.scoreBreakdown?.momentumComponent ?? 'missing'}</strong></span>
+                <span style={{ color: '#a78bfa' }}>+ ROC: <strong>{analysis.marketTrend?.scoreBreakdown?.rocComponent ?? 'missing'}</strong></span>
+                <span style={{ color: '#60a5fa' }}>+ MA: <strong>{analysis.marketTrend?.scoreBreakdown?.maComponent ?? 'missing'}</strong></span>
+                <span style={{ color: '#34d399' }}>+ Accel: <strong>{analysis.marketTrend?.scoreBreakdown?.accelComponent ?? 'missing'}</strong></span>
+                <span style={{ color: '#f472b6' }}>+ Consec: <strong>{analysis.marketTrend?.scoreBreakdown?.consecutiveComponent ?? 'missing'}</strong></span>
+                <span style={{ color: '#fff', fontWeight: 'bold' }}>= TOTAL: <span style={{ color: parseFloat(analysis.marketTrend?.trendScore || 0) > 0 ? '#4ade80' : '#f87171', fontSize: '14px' }}>{analysis.marketTrend?.trendScore ?? 'missing'}</span></span>
+              </div>
+              {/* Raw debug */}
+              <div style={{ marginTop: '8px', fontSize: '10px', color: '#64748b', wordBreak: 'break-all' }}>
+                Raw scoreBreakdown: {JSON.stringify(analysis.marketTrend?.scoreBreakdown)}
               </div>
             </div>
             
