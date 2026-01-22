@@ -431,6 +431,10 @@ export default function App() {
           <div>
             <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', margin: 0 }}>🧠 Trend-Aware ML Analysis</h1>
             <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: '14px' }}>Adapts strategy based on market conditions</p>
+            {/* Debug info */}
+            <p style={{ color: '#f87171', margin: '4px 0 0', fontSize: '11px' }}>
+              DEBUG: Data points: {data?.length || 0} | Analysis: {analysis ? 'YES' : 'NO'} | MarketTrend method: {analysis?.marketTrend?.method || 'N/A'}
+            </p>
           </div>
           <button onClick={loadData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600' }}>
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />Refresh
