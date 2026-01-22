@@ -509,6 +509,76 @@ export default function App() {
           </div>
         )}
 
+        {/* Strategy Explanation Panel */}
+        {analysis && (
+          <div style={{ background: 'rgba(30, 41, 59, 0.8)', borderLeft: '1px solid rgba(99, 102, 241, 0.3)', borderRight: '1px solid rgba(99, 102, 241, 0.3)', padding: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <AlertTriangle size={24} color="#fbbf24" />
+              <h3 style={{ color: 'white', margin: 0, fontSize: '18px' }}>Strategy Selection Logic</h3>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+              {/* Trend Following - Downtrend */}
+              <div style={{ 
+                background: analysis.strategy === 'TREND_FOLLOWING' && isDown ? 'rgba(239, 68, 68, 0.2)' : 'rgba(0,0,0,0.2)', 
+                border: analysis.strategy === 'TREND_FOLLOWING' && isDown ? '2px solid #f87171' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '12px', padding: '16px' 
+              }}>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '8px' }}>
+                  {analysis.strategy === 'TREND_FOLLOWING' && isDown ? '✅ ACTIVE: ' : ''}TREND FOLLOWING (Downtrend)
+                </div>
+                <div style={{ fontSize: '12px', color: '#d1d5db', lineHeight: '1.5' }}>
+                  <strong>When:</strong> ML Score &lt; -20<br/>
+                  <strong>Current:</strong> {analysis.marketTrend.trendScore}<br/>
+                  <strong>Action:</strong> LONG BTC + SHORT ALT<br/>
+                  <strong>Why:</strong> BTC is safer in downtrends, alts fall harder
+                </div>
+              </div>
+              
+              {/* Trend Following - Uptrend */}
+              <div style={{ 
+                background: analysis.strategy === 'TREND_FOLLOWING' && isUp ? 'rgba(34, 197, 94, 0.2)' : 'rgba(0,0,0,0.2)', 
+                border: analysis.strategy === 'TREND_FOLLOWING' && isUp ? '2px solid #4ade80' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '12px', padding: '16px' 
+              }}>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#86efac', marginBottom: '8px' }}>
+                  {analysis.strategy === 'TREND_FOLLOWING' && isUp ? '✅ ACTIVE: ' : ''}TREND FOLLOWING (Uptrend)
+                </div>
+                <div style={{ fontSize: '12px', color: '#d1d5db', lineHeight: '1.5' }}>
+                  <strong>When:</strong> ML Score &gt; +20<br/>
+                  <strong>Current:</strong> {analysis.marketTrend.trendScore}<br/>
+                  <strong>Action:</strong> LONG ALT + SHORT BTC<br/>
+                  <strong>Why:</strong> Alts have higher beta, gain more in bull runs
+                </div>
+              </div>
+              
+              {/* Mean Reversion */}
+              <div style={{ 
+                background: analysis.strategy === 'MEAN_REVERSION' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(0,0,0,0.2)', 
+                border: analysis.strategy === 'MEAN_REVERSION' ? '2px solid #fbbf24' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '12px', padding: '16px' 
+              }}>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fde047', marginBottom: '8px' }}>
+                  {analysis.strategy === 'MEAN_REVERSION' ? '✅ ACTIVE: ' : ''}MEAN REVERSION (Neutral)
+                </div>
+                <div style={{ fontSize: '12px', color: '#d1d5db', lineHeight: '1.5' }}>
+                  <strong>When:</strong> ML Score between -20 and +20<br/>
+                  <strong>Current:</strong> {analysis.marketTrend.trendScore}<br/>
+                  <strong>Action:</strong> Trade gap back to mean ({analysis.meanGap}%)<br/>
+                  <strong>Why:</strong> No clear trend, gaps tend to revert
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(139, 92, 246, 0.15)', borderRadius: '8px', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+              <div style={{ fontSize: '12px', color: '#c4b5fd' }}>
+                <strong>🎯 Current Decision:</strong> ML Score = <span style={{ color: parseFloat(analysis.marketTrend.trendScore) > 20 ? '#4ade80' : parseFloat(analysis.marketTrend.trendScore) < -20 ? '#f87171' : '#fbbf24', fontWeight: 'bold' }}>{analysis.marketTrend.trendScore}</span> 
+                → Strategy: <span style={{ color: '#fff', fontWeight: 'bold' }}>{analysis.strategy.replace('_', ' ')}</span>
+                {analysis.strategy === 'MEAN_REVERSION' && <span> (Gap {analysis.currentGap}% vs Mean {analysis.meanGap}%)</span>}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Trade Signal */}
         {analysis && analysis.action !== 'SKIP' && (
           <div style={{ background: 'rgba(30, 41, 59, 0.8)', borderLeft: '1px solid rgba(99, 102, 241, 0.3)', borderRight: '1px solid rgba(99, 102, 241, 0.3)', padding: '24px' }}>
