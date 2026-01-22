@@ -16,8 +16,10 @@ const CRYPTO_OPTIONS = [
 ];
 
 const INTERVAL_OPTIONS = [
-  { value: '1h', label: '1 Hour' }, { value: '4h', label: '4 Hours' },
-  { value: '1d', label: '1 Day' }, { value: '1w', label: '1 Week' },
+  { value: '1h', label: '1 Hour' }, 
+  { value: '4h', label: '4 Hours' },
+  { value: '1d', label: '1 Day' }, 
+  { value: '1w', label: '1 Week' },
 ];
 
 export default function App() {
@@ -32,13 +34,35 @@ export default function App() {
   const getAssetInfo = (id) => CRYPTO_OPTIONS.find(a => a.id === id) || CRYPTO_OPTIONS[0];
 
   const getTimeframeDetails = (tf, intv) => {
+    // Calculate limits based on timeframe and interval
     const limits = {
-      '1D': { '1h': 24, '4h': 6 },
-      '7D': { '1h': 168, '4h': 42, '1d': 7 },
-      '1M': { '1d': 30, '4h': 180 },
-      '3M': { '1d': 90, '1w': 12 },
+      '1D': { '1h': 24, '4h': 6, '1d': 1 },
+      '7D': { '1h': 168, '4h': 42, '1d': 7, '1w': 1 },
+      '1M': { '1h': 720, '4h': 180, '1d': 30, '1w': 4 },
+      '3M': { '1h': 500, '4h': 540, '1d': 90, '1w': 12 },  // 1h capped at 500
+      '6M': { '4h': 500, '1d': 180, '1w': 26 },  // No 1h for 6M (too many points)
+      'YTD': { '4h': 500, '1d': getDaysYTD(), '1w': Math.ceil(getDaysYTD() / 7) },
+      '1Y': { '4h': 500, '1d': 365, '1w': 52 },
     };
-    return { interval: intv, limit: limits[tf]?.[intv] || 30 };
+    
+    // Get the limit for the selected timeframe and interval
+    const tfLimits = limits[tf] || limits['7D'];
+    let limit = tfLimits[intv];
+    
+    // If selected interval not available for this timeframe, find best alternative
+    if (!limit) {
+      // Fallback priority: 1d > 4h > 1w > 1h
+      limit = tfLimits['1d'] || tfLimits['4h'] || tfLimits['1w'] || tfLimits['1h'] || 30;
+    }
+    
+    return { interval: intv, limit };
+  };
+  
+  // Helper to get days since start of year
+  const getDaysYTD = () => {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    return Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24));
   };
 
   // Detect trend AND potential reversals
@@ -651,7 +675,7 @@ export default function App() {
         <div style={{ background: 'rgba(30, 41, 59, 0.9)', borderLeft: '1px solid rgba(99, 102, 241, 0.3)', borderRight: '1px solid rgba(99, 102, 241, 0.3)', padding: '16px 24px' }}>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ color: '#94a3b8', fontSize: '14px', marginRight: '8px' }}>Timeframe:</span>
-            {['1D', '7D', '1M', '3M'].map(tf => (
+            {['1D', '7D', '1M', '3M', '6M', 'YTD', '1Y'].map(tf => (
               <button key={tf} onClick={() => setTimeframe(tf)} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', background: timeframe === tf ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#334155', color: 'white', fontWeight: '500', fontSize: '14px' }}>{tf}</button>
             ))}
           </div>
