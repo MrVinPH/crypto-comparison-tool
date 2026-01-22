@@ -203,7 +203,6 @@ function App() {
       recentTrades: trades.slice(-10)
     };
   };
-
   const generatePrediction = (chartData, patterns, backtestResults, asset1Info, asset2Info) => {
     if (!chartData.length || !patterns.length || !backtestResults) return null;
     
@@ -467,7 +466,6 @@ function App() {
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe, interval, asset1, asset2]);
 
   useEffect(() => {
@@ -482,12 +480,10 @@ function App() {
         prediction
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manualThresholds, priceInfo]);
   
   const asset1Info = getAssetInfo(asset1);
   const asset2Info = getAssetInfo(asset2);
-
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       return (
@@ -718,7 +714,6 @@ function App() {
                           </div>
                         </div>
                       )}
-                      
                       <div style={{ display: 'grid', gap: '12px' }}>
                         <div style={{ 
                           padding: '12px',
@@ -930,7 +925,6 @@ function App() {
             </div>
           </>
         )}
-
         {backtestResults && (!algoAnalysis?.prediction || algoAnalysis.prediction.action === 'SKIP') && (
           <div style={{
             backgroundColor: '#1f2937',
@@ -979,7 +973,7 @@ function App() {
                   📊 CURRENT METRICS vs REQUIREMENTS (Need ANY 1):
                 </div>
                 <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
-                  Current 24h Gap: {priceInfo.asset1 && priceInfo.asset2 ? Math.abs(priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00'}%
+                  Current {timeframe} Gap: {priceInfo.asset1 && priceInfo.asset2 ? Math.abs(priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe).toFixed(2) : '0.00'}%
                 </div>
                 <div style={{ display: 'grid', gap: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
@@ -1027,6 +1021,7 @@ function App() {
           </div>
         )}
 
+        {/* FIXED MEAN REVERSION ANALYSIS SECTION - Now uses timeframe instead of 24H */}
         {backtestResults && (
           <div style={{
             backgroundColor: '#1f2937',
@@ -1047,11 +1042,11 @@ function App() {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
-                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Current 24H Gap</div>
-                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '#34d399' : '#f87171' }}>
-                    {priceInfo.asset1 && priceInfo.asset2 ? ((priceInfo.asset2.change - priceInfo.asset1.change) >= 0 ? '+' : '') + (priceInfo.asset2.change - priceInfo.asset1.change).toFixed(2) : '0.00'}%
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Current {timeframe} Gap</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: priceInfo.asset1 && priceInfo.asset2 && (priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) >= 0 ? '#34d399' : '#f87171' }}>
+                    {priceInfo.asset1 && priceInfo.asset2 ? ((priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) >= 0 ? '+' : '') + (priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe).toFixed(2) : '0.00'}%
                   </div>
-                  <div style={{ fontSize: '12px', color: '#6ee7b7', marginTop: '4px' }}>Live 24h gap</div>
+                  <div style={{ fontSize: '12px', color: '#6ee7b7', marginTop: '4px' }}>Live {timeframe} gap</div>
                 </div>
 
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
@@ -1064,17 +1059,17 @@ function App() {
 
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
                   <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Deviation from Mean</div>
-                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: Math.abs((priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.change - priceInfo.asset1.change) : 0) - parseFloat(avgDiff)) > 1 ? '#fbbf24' : '#34d399' }}>
-                    {priceInfo.asset1 && priceInfo.asset2 ? ((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)).toFixed(2) : '0.00'}%
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: Math.abs((priceInfo.asset1 && priceInfo.asset2 ? (priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) : 0) - parseFloat(avgDiff)) > 1 ? '#fbbf24' : '#34d399' }}>
+                    {priceInfo.asset1 && priceInfo.asset2 ? ((priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) - parseFloat(avgDiff)).toFixed(2) : '0.00'}%
                   </div>
                   <div style={{ fontSize: '12px', color: '#fcd34d', marginTop: '4px' }}>Current vs average</div>
                 </div>
 
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
                   <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Expected Gap Target</div>
-<div style={{ fontSize: '28px', fontWeight: 'bold', color: '#a78bfa' }}>
-  {algoAnalysis?.prediction?.targetGap || avgDiff}%
-</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#a78bfa' }}>
+                    {algoAnalysis?.prediction?.targetGap || avgDiff}%
+                  </div>
                   <div style={{ fontSize: '12px', color: '#c4b5fd', marginTop: '4px' }}>Mean reversion target</div>
                 </div>
               </div>
@@ -1087,17 +1082,16 @@ function App() {
               }}>
                 <div style={{ fontSize: '14px', color: '#d1d5db', lineHeight: '1.6' }}>
                   <strong style={{ color: '#34d399' }}>📊 Mean Reversion Theory:</strong> The gap between {asset1Info.symbol} and {asset2Info.symbol} tends to revert to its historical average of <strong>{avgDiff}%</strong>. 
-                  {priceInfo.asset1 && priceInfo.asset2 && Math.abs((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)) > 1 ? (
-                    <span style={{ color: '#fbbf24' }}> Current gap is <strong>{Math.abs((priceInfo.asset2.change - priceInfo.asset1.change) - parseFloat(avgDiff)).toFixed(2)}%</strong> away from the mean, suggesting {(priceInfo.asset2.change - priceInfo.asset1.change) > parseFloat(avgDiff) ? `${asset1Info.symbol} should catch up (LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol})` : `${asset2Info.symbol} should catch up (LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol})`}.</span>
+                  {priceInfo.asset1 && priceInfo.asset2 && Math.abs((priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) - parseFloat(avgDiff)) > 1 ? (
+                    <span style={{ color: '#fbbf24' }}> Current {timeframe} gap is <strong>{Math.abs((priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) - parseFloat(avgDiff)).toFixed(2)}%</strong> away from the mean, suggesting {(priceInfo.asset2.changeTimeframe - priceInfo.asset1.changeTimeframe) > parseFloat(avgDiff) ? `${asset1Info.symbol} should catch up (LONG ${asset1Info.symbol} + SHORT ${asset2Info.symbol})` : `${asset2Info.symbol} should catch up (LONG ${asset2Info.symbol} + SHORT ${asset1Info.symbol})`}.</span>
                   ) : (
-                    <span style={{ color: '#34d399' }}> The gap is currently close to the historical average, indicating balanced performance.</span>
+                    <span style={{ color: '#34d399' }}> The {timeframe} gap is currently close to the historical average, indicating balanced performance.</span>
                   )}
                 </div>
               </div>
             </div>
           </div>
         )}
-
         {backtestResults && (
           <div style={{
             backgroundColor: '#1f2937',
@@ -1337,7 +1331,6 @@ function App() {
             </div>
           </div>
         </div>
-
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
