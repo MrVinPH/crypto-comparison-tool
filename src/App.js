@@ -330,11 +330,9 @@ export default function App() {
     const equityCurve = [{ bar: 0, equity: 100, date: chartData[0]?.date }];
     
     let inTrade = false;
-    let tradeEntry = null;
     let tradeDirection = null; // 'LONG_BTC' or 'LONG_ALT'
     let entryBar = 0;
     let entryGap = 0;
-    let entryEquity = 100;
     
     // Simulate through historical data
     for (let i = 15; i < chartData.length; i++) {
@@ -451,11 +449,9 @@ export default function App() {
         
         if (signal) {
           inTrade = true;
-          tradeEntry = currentBar;
           tradeDirection = signal;
           entryBar = i;
           entryGap = gap;
-          entryEquity = equity;
         }
       }
     }
@@ -485,7 +481,6 @@ export default function App() {
     
     // Calculate max drawdown
     let maxEquity = 100;
-    let maxDrawdown = 0;
     let maxDrawdownPercent = 0;
     
     for (const point of equityCurve) {
@@ -495,7 +490,6 @@ export default function App() {
       const drawdown = maxEquity - point.equity;
       const drawdownPercent = (drawdown / maxEquity) * 100;
       if (drawdownPercent > maxDrawdownPercent) {
-        maxDrawdown = drawdown;
         maxDrawdownPercent = drawdownPercent;
       }
     }
