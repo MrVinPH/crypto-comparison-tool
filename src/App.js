@@ -88,7 +88,6 @@ export default function App() {
     
     // Calculate how far we are from extremes
     const distanceFromLow = btcChange - lowestPoint;
-    const distanceFromHigh = highestPoint - btcChange;
     const totalRange = highestPoint - lowestPoint;
     const percentFromLow = totalRange > 0 ? (distanceFromLow / totalRange) * 100 : 50;
     
@@ -416,7 +415,6 @@ export default function App() {
   const a1 = getAssetInfo(asset1), a2 = getAssetInfo(asset2);
   const isDown = analysis?.trend?.trend?.includes('DOWNTREND');
   const isUp = analysis?.trend?.trend?.includes('UPTREND');
-  const hasReversal = analysis?.trend?.reversal !== null;
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)', padding: '16px' }}>
@@ -439,7 +437,6 @@ export default function App() {
             background: analysis.trend.reversal.type === 'BULLISH_REVERSAL' 
               ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(21, 128, 61, 0.5))' 
               : 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(127, 29, 29, 0.5))',
-            borderLeft: '1px solid rgba(99, 102, 241, 0.3)', 
             borderRight: '1px solid rgba(99, 102, 241, 0.3)', 
             padding: '20px 24px',
             borderLeft: `4px solid ${analysis.trend.reversal.type === 'BULLISH_REVERSAL' ? '#4ade80' : '#f87171'}`
