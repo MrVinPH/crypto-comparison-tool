@@ -421,7 +421,6 @@ export default function App() {
           equityCurve.push({ bar: i, equity: parseFloat(equity.toFixed(2)), date: currentBar.date });
           
           inTrade = false;
-          tradeEntry = null;
           tradeDirection = null;
         }
       }
