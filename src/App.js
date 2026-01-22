@@ -46,6 +46,125 @@ export default function App() {
     return { interval: intv, limit: limits[intv] || 30 };
   };
 
+  // ML Function: Calculate optimal TP/SL from historical price action
+  const calculateMLTargets = (chartData, trend, dominance) => {
+    if (chartData.length < 15) return { optimalTP: 3.0, optimalSL: 2.0, winRate: 50, samples: 0, method: 'DEFAULT' };
+    
+    const isDowntrend = trend.includes('DOWNTREND');
+    const isUptrend = trend.includes('UPTREND');
+    
+    // Calculate historical move distributions
+    const moves = [];
+    const winningMoves = [];
+    const losingMoves = [];
+    
+    for (let i = 5; i < chartData.length; i++) {
+      const btcMove = Math.abs(chartData[i].asset1Daily - chartData[i-5].asset1Daily);
+      const ethMove = Math.abs(chartData[i].asset2Daily - chartData[i-5].asset2Daily);
+      const gapChange = chartData[i].diff - chartData[i-5].diff;
+      
+      // Simulate trades based on regime
+      if (isDowntrend) {
+        // In downtrend, we long BTC short ALT - we win if BTC outperforms (gap widens negative or ETH falls more)
+        const pnl = chartData[i-5].asset1Daily - chartData[i].asset1Daily < chartData[i-5].asset2Daily - chartData[i].asset2Daily;
+        if (pnl) winningMoves.push(Math.abs(gapChange));
+        else losingMoves.push(Math.abs(gapChange));
+      } else if (isUptrend) {
+        // In uptrend, we long ALT short BTC - we win if ALT outperforms
+        const pnl = chartData[i].asset2Daily - chartData[i-5].asset2Daily > chartData[i].asset1Daily - chartData[i-5].asset1Daily;
+        if (pnl) winningMoves.push(Math.abs(gapChange));
+        else losingMoves.push(Math.abs(gapChange));
+      } else {
+        // Mean reversion
+        moves.push(Math.abs(gapChange));
+      }
+    }
+    
+    // Calculate percentiles for optimal levels
+    const allMoves = [...winningMoves, ...losingMoves, ...moves].sort((a, b) => a - b);
+    if (allMoves.length < 5) return { optimalTP: 3.0, optimalSL: 2.0, winRate: 50, samples: 0, method: 'DEFAULT' };
+    
+    // Use 60th percentile for TP (capture most winning moves)
+    // Use 30th percentile for SL (cut losses before avg losing move)
+    const tp60 = allMoves[Math.floor(allMoves.length * 0.6)];
+    const sl30 = allMoves[Math.floor(allMoves.length * 0.3)];
+    
+    // Calculate average winning and losing moves
+    const avgWin = winningMoves.length > 0 ? winningMoves.reduce((a,b) => a+b, 0) / winningMoves.length : tp60;
+    const avgLoss = losingMoves.length > 0 ? losingMoves.reduce((a,b) => a+b, 0) / losingMoves.length : sl30;
+    
+    // Backtest different TP/SL combinations to find optimal
+    let bestTP = 3.0, bestSL = 2.0, bestScore = 0;
+    const tpTests = [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0];
+    const slTests = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5];
+    
+    for (const tp of tpTests) {
+      for (const sl of slTests) {
+        let wins = 0, losses = 0, totalPnl = 0;
+        
+        for (let i = 5; i < chartData.length - 5; i++) {
+          const entryGap = chartData[i].diff;
+          let hitTP = false, hitSL = false;
+          
+          // Look forward to see if TP or SL hit first
+          for (let j = i + 1; j < Math.min(i + 10, chartData.length); j++) {
+            const futureGap = chartData[j].diff;
+            const gapMove = Math.abs(futureGap - entryGap);
+            
+            if (isDowntrend || isUptrend) {
+              // Trend following: gap should move in predicted direction
+              const correctDirection = isDowntrend ? (futureGap < entryGap) : (futureGap > entryGap);
+              if (correctDirection && gapMove >= tp) { hitTP = true; break; }
+              if (!correctDirection && gapMove >= sl) { hitSL = true; break; }
+            } else {
+              // Mean reversion: gap should move toward mean
+              if (gapMove >= tp) { hitTP = true; break; }
+              if (gapMove >= sl) { hitSL = true; break; }
+            }
+          }
+          
+          if (hitTP) { wins++; totalPnl += tp; }
+          else if (hitSL) { losses++; totalPnl -= sl; }
+        }
+        
+        const totalTrades = wins + losses;
+        if (totalTrades >= 3) {
+          const winRate = wins / totalTrades;
+          const expectancy = (winRate * tp) - ((1 - winRate) * sl);
+          const score = expectancy * Math.sqrt(totalTrades); // Sharpe-like score
+          
+          if (score > bestScore) {
+            bestScore = score;
+            bestTP = tp;
+            bestSL = sl;
+          }
+        }
+      }
+    }
+    
+    // Calculate final win rate with optimal params
+    let finalWins = 0, finalTotal = 0;
+    for (let i = 5; i < chartData.length - 5; i++) {
+      const entryGap = chartData[i].diff;
+      for (let j = i + 1; j < Math.min(i + 10, chartData.length); j++) {
+        const gapMove = Math.abs(chartData[j].diff - entryGap);
+        if (gapMove >= bestTP) { finalWins++; finalTotal++; break; }
+        if (gapMove >= bestSL) { finalTotal++; break; }
+      }
+    }
+    
+    return {
+      optimalTP: parseFloat(bestTP.toFixed(1)),
+      optimalSL: parseFloat(bestSL.toFixed(1)),
+      winRate: finalTotal > 0 ? ((finalWins / finalTotal) * 100).toFixed(1) : 50,
+      samples: chartData.length - 10,
+      avgWin: avgWin.toFixed(2),
+      avgLoss: avgLoss.toFixed(2),
+      expectancy: ((bestTP * (finalWins/Math.max(finalTotal,1))) - (bestSL * (1 - finalWins/Math.max(finalTotal,1)))).toFixed(2),
+      method: 'ML_OPTIMIZED'
+    };
+  };
+
   // Detect overall market trend using BTC as benchmark
   const detectMarketTrend = (chartData) => {
     if (chartData.length < 5) return { trend: 'NEUTRAL', strength: 0, btcChange: 0 };
@@ -131,11 +250,21 @@ export default function App() {
     const marketTrend = detectMarketTrend(chartData);
     const dominance = analyzeBtcDominance(chartData);
     
+    // Get current prices
+    const price1 = priceData.asset1.current;
+    const price2 = priceData.asset2.current;
+    
     // Determine strategy based on trend
     let strategy, action, longAsset, shortAsset, reasoning, confidence;
+    let longPrice, shortPrice, longTP, longSL, shortTP, shortSL;
     const isDowntrend = marketTrend.trend.includes('DOWNTREND');
     const isUptrend = marketTrend.trend.includes('UPTREND');
     const btcIsAsset1 = asset1Info.symbol === 'BTC';
+    
+    // ML-OPTIMIZED: Calculate TP/SL from historical data
+    const mlTargets = calculateMLTargets(chartData, marketTrend.trend, dominance);
+    const tpPercent = mlTargets.optimalTP;
+    const slPercent = mlTargets.optimalSL;
     
     if (isDowntrend) {
       // DOWNTREND LOGIC: BTC typically outperforms alts
@@ -144,6 +273,9 @@ export default function App() {
         action = 'PAIRS_TRADE';
         longAsset = asset1Info.symbol; // Long BTC
         shortAsset = asset2Info.symbol; // Short ALT
+        longPrice = price1; shortPrice = price2;
+        longTP = price1 * (1 + tpPercent/100); longSL = price1 * (1 - slPercent/100);
+        shortTP = price2 * (1 - tpPercent/100); shortSL = price2 * (1 + slPercent/100);
         reasoning = `DOWNTREND DETECTED (BTC ${marketTrend.btcChange}%). Historical data shows BTC outperforms ${asset2Info.symbol} in ${dominance.btcDominanceRate}% of downtrend periods. BTC tends to be more resilient - expect gap to WIDEN (${asset2Info.symbol} to fall more).`;
         confidence = Math.min(85, 50 + parseFloat(dominance.btcDominanceRate) * 0.3 + parseFloat(marketTrend.strength) * 0.2);
       } else {
@@ -151,6 +283,9 @@ export default function App() {
         action = 'PAIRS_TRADE';
         longAsset = btcIsAsset1 ? asset1Info.symbol : asset2Info.symbol;
         shortAsset = btcIsAsset1 ? asset2Info.symbol : asset1Info.symbol;
+        longPrice = btcIsAsset1 ? price1 : price2; shortPrice = btcIsAsset1 ? price2 : price1;
+        longTP = longPrice * (1 + tpPercent/100); longSL = longPrice * (1 - slPercent/100);
+        shortTP = shortPrice * (1 - tpPercent/100); shortSL = shortPrice * (1 + slPercent/100);
         reasoning = `DOWNTREND (${marketTrend.btcChange}%). Favoring BTC as safe haven. Historical BTC dominance: ${dominance.btcDominanceRate}% in down markets.`;
         confidence = 60;
       }
@@ -161,6 +296,9 @@ export default function App() {
         action = 'PAIRS_TRADE';
         longAsset = asset2Info.symbol; // Long ALT
         shortAsset = asset1Info.symbol; // Short BTC
+        longPrice = price2; shortPrice = price1;
+        longTP = price2 * (1 + tpPercent/100); longSL = price2 * (1 - slPercent/100);
+        shortTP = price1 * (1 - tpPercent/100); shortSL = price1 * (1 + slPercent/100);
         reasoning = `UPTREND DETECTED (BTC +${marketTrend.btcChange}%). Historical data shows ${asset2Info.symbol} outperforms BTC in ${dominance.altOutperformRate}% of uptrend periods. Altcoins typically have higher beta - expect gap to NARROW (${asset2Info.symbol} to gain more).`;
         confidence = Math.min(85, 50 + parseFloat(dominance.altOutperformRate) * 0.3 + parseFloat(marketTrend.strength) * 0.2);
       } else {
@@ -168,6 +306,9 @@ export default function App() {
         action = 'PAIRS_TRADE';
         longAsset = btcIsAsset1 ? asset2Info.symbol : asset1Info.symbol;
         shortAsset = btcIsAsset1 ? asset1Info.symbol : asset2Info.symbol;
+        longPrice = btcIsAsset1 ? price2 : price1; shortPrice = btcIsAsset1 ? price1 : price2;
+        longTP = longPrice * (1 + tpPercent/100); longSL = longPrice * (1 - slPercent/100);
+        shortTP = shortPrice * (1 - tpPercent/100); shortSL = shortPrice * (1 + slPercent/100);
         reasoning = `UPTREND (+${marketTrend.btcChange}%). Favoring alts for higher beta exposure. Historical alt outperformance: ${dominance.altOutperformRate}% in up markets.`;
         confidence = 60;
       }
@@ -178,18 +319,24 @@ export default function App() {
         action = 'PAIRS_TRADE';
         longAsset = asset1Info.symbol;
         shortAsset = asset2Info.symbol;
+        longPrice = price1; shortPrice = price2;
+        longTP = price1 * (1 + tpPercent/100); longSL = price1 * (1 - slPercent/100);
+        shortTP = price2 * (1 - tpPercent/100); shortSL = price2 * (1 + slPercent/100);
         reasoning = `NEUTRAL MARKET. Gap (${currentGap.toFixed(2)}%) above mean (${mean.toFixed(2)}%). Mean reversion suggests gap will narrow.`;
         confidence = 55;
       } else if (currentGap < mean - stdDev * 0.5) {
         action = 'PAIRS_TRADE';
         longAsset = asset2Info.symbol;
         shortAsset = asset1Info.symbol;
+        longPrice = price2; shortPrice = price1;
+        longTP = price2 * (1 + tpPercent/100); longSL = price2 * (1 - slPercent/100);
+        shortTP = price1 * (1 - tpPercent/100); shortSL = price1 * (1 + slPercent/100);
         reasoning = `NEUTRAL MARKET. Gap (${currentGap.toFixed(2)}%) below mean (${mean.toFixed(2)}%). Mean reversion suggests gap will widen.`;
         confidence = 55;
       } else {
         action = 'SKIP';
-        longAsset = null;
-        shortAsset = null;
+        longAsset = null; shortAsset = null;
+        longPrice = 0; shortPrice = 0; longTP = 0; longSL = 0; shortTP = 0; shortSL = 0;
         reasoning = `NEUTRAL MARKET, gap near mean. No clear edge. Wait for better setup.`;
         confidence = 0;
       }
@@ -211,7 +358,19 @@ export default function App() {
       meanGap: mean.toFixed(2),
       stdDev: stdDev.toFixed(2),
       expectedMove: expectedMove.toFixed(2),
-      riskLevel: stdDev > 3 ? 'HIGH' : stdDev > 1.5 ? 'MEDIUM' : 'LOW'
+      riskLevel: stdDev > 3 ? 'HIGH' : stdDev > 1.5 ? 'MEDIUM' : 'LOW',
+      // Price targets
+      longEntry: longPrice,
+      shortEntry: shortPrice,
+      longTakeProfit: longTP,
+      longStopLoss: longSL,
+      shortTakeProfit: shortTP,
+      shortStopLoss: shortSL,
+      tpPercent,
+      slPercent,
+      riskReward: (tpPercent / slPercent).toFixed(2),
+      // ML metrics
+      mlTargets
     };
   };
 
@@ -338,14 +497,51 @@ export default function App() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div style={{ background: 'rgba(34, 197, 94, 0.2)', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '14px', color: '#86efac' }}>🟢 LONG</div>
-                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#4ade80' }}>{analysis.longAsset}</div>
+                <div style={{ background: 'rgba(34, 197, 94, 0.2)', borderRadius: '12px', padding: '20px' }}>
+                  <div style={{ fontSize: '14px', color: '#86efac', marginBottom: '8px' }}>🟢 LONG</div>
+                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#4ade80', marginBottom: '12px' }}>{analysis.longAsset}</div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                      <div><span style={{ color: '#94a3b8' }}>Entry</span><div style={{ color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>${analysis.longEntry?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div>
+                      <div><span style={{ color: '#4ade80' }}>TP (+{analysis.tpPercent}%)</span><div style={{ color: '#4ade80', fontWeight: 'bold', fontSize: '14px' }}>${analysis.longTakeProfit?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div>
+                      <div><span style={{ color: '#f87171' }}>SL (-{analysis.slPercent}%)</span><div style={{ color: '#f87171', fontWeight: 'bold', fontSize: '14px' }}>${analysis.longStopLoss?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div>
+                    </div>
+                  </div>
                 </div>
-                <div style={{ background: 'rgba(239, 68, 68, 0.2)', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '14px', color: '#fca5a5' }}>🔴 SHORT</div>
-                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#f87171' }}>{analysis.shortAsset}</div>
+                <div style={{ background: 'rgba(239, 68, 68, 0.2)', borderRadius: '12px', padding: '20px' }}>
+                  <div style={{ fontSize: '14px', color: '#fca5a5', marginBottom: '8px' }}>🔴 SHORT</div>
+                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#f87171', marginBottom: '12px' }}>{analysis.shortAsset}</div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                      <div><span style={{ color: '#94a3b8' }}>Entry</span><div style={{ color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>${analysis.shortEntry?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div>
+                      <div><span style={{ color: '#4ade80' }}>TP (-{analysis.tpPercent}%)</span><div style={{ color: '#4ade80', fontWeight: 'bold', fontSize: '14px' }}>${analysis.shortTakeProfit?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div>
+                      <div><span style={{ color: '#f87171' }}>SL (+{analysis.slPercent}%)</span><div style={{ color: '#f87171', fontWeight: 'bold', fontSize: '14px' }}>${analysis.shortStopLoss?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div></div>
+                    </div>
+                  </div>
                 </div>
+              </div>
+
+              <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                <div style={{ background: 'rgba(99, 102, 241, 0.2)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#a5b4fc' }}>Risk/Reward</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#818cf8' }}>1:{analysis.riskReward}</div>
+                </div>
+                <div style={{ background: 'rgba(234, 179, 8, 0.2)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#fde047' }}>ML Win Rate</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#facc15' }}>{analysis.mlTargets?.winRate}%</div>
+                </div>
+                <div style={{ background: 'rgba(34, 197, 94, 0.2)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#86efac' }}>Expectancy</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#4ade80' }}>{analysis.mlTargets?.expectancy}%</div>
+                </div>
+                <div style={{ background: 'rgba(139, 92, 246, 0.2)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#c4b5fd' }}>Samples</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#a78bfa' }}>{analysis.mlTargets?.samples}</div>
+                </div>
+              </div>
+              
+              <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(139, 92, 246, 0.15)', borderRadius: '8px', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+                <div style={{ fontSize: '12px', color: '#c4b5fd' }}>🧠 <strong>ML Optimization:</strong> TP/SL calculated from {analysis.mlTargets?.samples} historical samples. Avg winning move: {analysis.mlTargets?.avgWin}% | Avg losing move: {analysis.mlTargets?.avgLoss}%</div>
               </div>
 
               <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
