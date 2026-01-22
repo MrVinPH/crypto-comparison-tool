@@ -407,7 +407,11 @@ export default function App() {
       
       setData(chartData);
       setPriceInfo(priceData);
-      setAnalysis(runAnalysis(chartData, a1, a2, priceData));
+      
+      // Run analysis with fresh data
+      const analysisResult = runAnalysis(chartData, a1, a2, priceData);
+      console.log('Setting analysis:', analysisResult);
+      setAnalysis(analysisResult);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
