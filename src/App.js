@@ -28,7 +28,7 @@ export default function App() {
   const [asset1, setAsset1] = useState('BTCUSDT');
   const [asset2, setAsset2] = useState('ETHUSDT');
   const [loading, setLoading] = useState(false);
-  const [priceInfo, setPriceInfo] = useState({ asset1: null, asset2: null });
+  const [, setPriceInfo] = useState({ asset1: null, asset2: null });
   const [analysis, setAnalysis] = useState(null);
 
   const getAssetInfo = (id) => CRYPTO_OPTIONS.find(a => a.id === id) || CRYPTO_OPTIONS[0];
@@ -255,7 +255,8 @@ export default function App() {
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, [timeframe, interval, asset1, asset2]);
+  useEffect(() => { loadData(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeframe, interval, asset1, asset2]);
 
   const a1 = getAssetInfo(asset1), a2 = getAssetInfo(asset2);
   const isDown = analysis?.marketTrend?.trend?.includes('DOWNTREND');
