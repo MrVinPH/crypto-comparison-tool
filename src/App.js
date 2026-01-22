@@ -345,9 +345,6 @@ function App() {
     };
   };
 
-// END OF PART 1 - Continue with Part 2
-// PART 2 - Continue from Part 1
-
   const loadData = async () => {
     setLoading(true);
     setError(null);
@@ -543,9 +540,6 @@ function App() {
   const avgAsset1 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset1Daily, 0) / data.length).toFixed(2) : 0;
   const avgAsset2 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset2Daily, 0) / data.length).toFixed(2) : 0;
   const avgDiff = data.length > 0 ? (data.reduce((sum, d) => sum + d.diff, 0) / data.length).toFixed(2) : 0;
-
-// END OF PART 2 - Continue with Part 3 (return statement / JSX)
-// PART 3a - Return statement start (continues from Part 2)
 
   return (
     <div style={{ 
@@ -829,9 +823,6 @@ function App() {
               </div>
             </div>
 
-// END OF PART 3a - Continue with Part 3b
-// PART 3b - Continues from Part 3a
-
             <div style={{
               backgroundColor: '#1f2937',
               borderLeft: '1px solid #374151',
@@ -1105,9 +1096,6 @@ function App() {
           </div>
         )}
 
-// END OF PART 3c - Continue with Part 3d
-// PART 3d - Continues from Part 3c (Backtest Performance through Manual Thresholds)
-
         {backtestResults && (
           <div style={{
             backgroundColor: '#1f2937',
@@ -1286,9 +1274,6 @@ function App() {
               <p style={{ color: '#fecaca', fontSize: '14px' }}>{error}</p>
             </div>
           )}
-
-// END OF PART 3d - Continue with Part 3e (final)
-// PART 3e - FINAL (Asset selectors, price cards, timeframe buttons, charts, closing)
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '16px' }}>
             <div>
