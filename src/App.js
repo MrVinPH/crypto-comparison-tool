@@ -59,8 +59,6 @@ export default function App() {
     const losingMoves = [];
     
     for (let i = 5; i < chartData.length; i++) {
-      const btcMove = Math.abs(chartData[i].asset1Daily - chartData[i-5].asset1Daily);
-      const ethMove = Math.abs(chartData[i].asset2Daily - chartData[i-5].asset2Daily);
       const gapChange = chartData[i].diff - chartData[i-5].diff;
       
       // Simulate trades based on regime
@@ -100,7 +98,7 @@ export default function App() {
     
     for (const tp of tpTests) {
       for (const sl of slTests) {
-        let wins = 0, losses = 0, totalPnl = 0;
+        let wins = 0, losses = 0;
         
         for (let i = 5; i < chartData.length - 5; i++) {
           const entryGap = chartData[i].diff;
@@ -123,8 +121,8 @@ export default function App() {
             }
           }
           
-          if (hitTP) { wins++; totalPnl += tp; }
-          else if (hitSL) { losses++; totalPnl -= sl; }
+          if (hitTP) { wins++; }
+          else if (hitSL) { losses++; }
         }
         
         const totalTrades = wins + losses;
