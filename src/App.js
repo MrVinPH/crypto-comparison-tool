@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { RefreshCw, TrendingUp, TrendingDown, ArrowUpCircle, Brain, CheckCircle } from 'lucide-react';
+import { RefreshCw, TrendingUp, Brain, CheckCircle } from 'lucide-react';
 
 const CRYPTO_OPTIONS = [
   { id: 'BTCUSDT', symbol: 'BTC', name: 'Bitcoin', color: '#f7931a' },
@@ -34,12 +34,12 @@ function App() {
   const [asset1, setAsset1] = useState('BTCUSDT');
   const [asset2, setAsset2] = useState('ETHUSDT');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(null); // eslint-disable-line no-unused-vars
   const [priceInfo, setPriceInfo] = useState({ asset1: null, asset2: null });
   const [algoAnalysis, setAlgoAnalysis] = useState(null);
   const [backtestResults, setBacktestResults] = useState(null);
   const [mlMetrics, setMlMetrics] = useState(null);
-  const [manualThresholds, setManualThresholds] = useState({
+  const [manualThresholds] = useState({
     minWinRate: 65,
     minProfitFactor: 1.5,
     minGap: 1.0
@@ -593,8 +593,6 @@ function App() {
       return (<div style={{ backgroundColor: 'white', padding: '14px', border: '1px solid #ccc', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}><p style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '10px', color: '#333' }}>{payload[0].payload.date}</p><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: '#10b981' }}></div><span style={{ fontSize: '15px', fontWeight: 'bold', color: '#333' }}>Gap: {payload[0].value}%</span></div></div>);
     } return null;
   };
-  const avgAsset1 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset1Daily, 0) / data.length).toFixed(2) : 0;
-  const avgAsset2 = data.length > 0 ? (data.reduce((sum, d) => sum + d.asset2Daily, 0) / data.length).toFixed(2) : 0;
   const avgDiff = data.length > 0 ? (data.reduce((sum, d) => sum + d.diff, 0) / data.length).toFixed(2) : 0;
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: 'linear-gradient(to bottom right, #1f2937, #111827, #1f2937)', padding: '16px' }}>
