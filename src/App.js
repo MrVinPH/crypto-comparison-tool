@@ -484,8 +484,11 @@ export default function App() {
                 </div>
                 <div style={{ color: '#e2e8f0', fontSize: '16px' }}>
                   BTC: {analysis.trend.btcChange >= 0 ? '+' : ''}{analysis.trend.btcChange.toFixed(2)}% | 
-                  Momentum: {analysis.trend.momentum > 0 ? '+' : ''}{analysis.trend.momentum} |
-                  Position in range: {analysis.trend.percentFromLow}% from low
+                  Momentum: {analysis.trend.momentum > 0 ? '+' : ''}{analysis.trend.momentum} 
+                  <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+                    ({analysis.trend.upCount}↑ {analysis.trend.downCount}↓ in last {analysis.trend.barsAnalyzed} bars)
+                  </span> |
+                  Position: {analysis.trend.percentFromLow}% from low
                 </div>
                 <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
                   1st half: {analysis.trend.olderChange}% | 2nd half: {analysis.trend.recentChange}%
