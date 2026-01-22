@@ -440,7 +440,7 @@ export default function App() {
               {isDown ? <TrendingDown size={40} color="#f87171" /> : isUp ? <TrendingUp size={40} color="#4ade80" /> : <AlertTriangle size={40} color="#fbbf24" />}
               <div>
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: isDown ? '#fca5a5' : isUp ? '#86efac' : '#fde047' }}>{analysis.marketTrend.trend.replace('_', ' ')}</div>
-                <div style={{ color: '#e2e8f0', fontSize: '14px' }}>BTC {analysis.marketTrend.btcChange}% | ML Score: {analysis.marketTrend.trendScore}</div>
+                <div style={{ color: '#e2e8f0', fontSize: '14px' }}>BTC {analysis.marketTrend.btcChange}% | ML Score: {analysis.marketTrend.trendScore || '0'}</div>
               </div>
               <div style={{ marginLeft: 'auto', textAlign: 'right', padding: '12px 20px', background: 'rgba(0,0,0,0.3)', borderRadius: '12px' }}>
                 <div style={{ fontSize: '12px', color: '#94a3b8' }}>Strategy Mode</div>
@@ -452,32 +452,32 @@ export default function App() {
             <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px' }}>
               <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <div style={{ fontSize: '10px', color: '#94a3b8' }}>Volatility</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e2e8f0' }}>{analysis.marketTrend.volatility}%</div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e2e8f0' }}>{analysis.marketTrend.volatility || '0'}%</div>
               </div>
               <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <div style={{ fontSize: '10px', color: '#94a3b8' }}>ROC</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: parseFloat(analysis.marketTrend.indicators?.roc) >= 0 ? '#4ade80' : '#f87171' }}>{analysis.marketTrend.indicators?.roc}%</div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: parseFloat(analysis.marketTrend.indicators?.roc || 0) >= 0 ? '#4ade80' : '#f87171' }}>{analysis.marketTrend.indicators?.roc || '0'}%</div>
               </div>
               <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <div style={{ fontSize: '10px', color: '#94a3b8' }}>MA Trend</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: parseFloat(analysis.marketTrend.indicators?.maTrend) >= 0 ? '#4ade80' : '#f87171' }}>{analysis.marketTrend.indicators?.maTrend}%</div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: parseFloat(analysis.marketTrend.indicators?.maTrend || 0) >= 0 ? '#4ade80' : '#f87171' }}>{analysis.marketTrend.indicators?.maTrend || '0'}%</div>
               </div>
               <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <div style={{ fontSize: '10px', color: '#94a3b8' }}>Momentum</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: analysis.marketTrend.momentum >= 0 ? '#4ade80' : '#f87171' }}>{analysis.marketTrend.momentum > 0 ? '+' : ''}{analysis.marketTrend.momentum}</div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: (analysis.marketTrend.momentum || 0) >= 0 ? '#4ade80' : '#f87171' }}>{(analysis.marketTrend.momentum || 0) > 0 ? '+' : ''}{analysis.marketTrend.momentum || 0}</div>
               </div>
               <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <div style={{ fontSize: '10px', color: '#94a3b8' }}>Consecutive</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: analysis.marketTrend.indicators?.consecutive >= 0 ? '#4ade80' : '#f87171' }}>{analysis.marketTrend.indicators?.consecutive > 0 ? '+' : ''}{analysis.marketTrend.indicators?.consecutive}</div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: (analysis.marketTrend.indicators?.consecutive || 0) >= 0 ? '#4ade80' : '#f87171' }}>{(analysis.marketTrend.indicators?.consecutive || 0) > 0 ? '+' : ''}{analysis.marketTrend.indicators?.consecutive || 0}</div>
               </div>
               <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <div style={{ fontSize: '10px', color: '#94a3b8' }}>Accel</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: parseFloat(analysis.marketTrend.indicators?.acceleration) >= 0 ? '#4ade80' : '#f87171' }}>{analysis.marketTrend.indicators?.acceleration}</div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: parseFloat(analysis.marketTrend.indicators?.acceleration || 0) >= 0 ? '#4ade80' : '#f87171' }}>{analysis.marketTrend.indicators?.acceleration || '0'}</div>
               </div>
             </div>
             
             <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(139, 92, 246, 0.15)', borderRadius: '6px', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
-              <span style={{ fontSize: '11px', color: '#c4b5fd' }}>🧠 <strong>ML Thresholds:</strong> Strong: ±{analysis.marketTrend.dynamicThresholds?.strong}% | Weak: ±{analysis.marketTrend.dynamicThresholds?.weak}% (auto-adjusted to {analysis.marketTrend.volatility}% volatility)</span>
+              <span style={{ fontSize: '11px', color: '#c4b5fd' }}>🧠 <strong>ML Thresholds:</strong> Strong: ±{analysis.marketTrend.dynamicThresholds?.strong || '2.0'}% | Weak: ±{analysis.marketTrend.dynamicThresholds?.weak || '0.5'}% (auto-adjusted to {analysis.marketTrend.volatility || '0'}% volatility)</span>
             </div>
           </div>
         )}
