@@ -337,7 +337,6 @@ export default function App() {
     // Simulate through historical data
     for (let i = 15; i < chartData.length; i++) {
       const currentBar = chartData[i];
-      const prevBars = chartData.slice(Math.max(0, i - 10), i);
       
       // Calculate trend at this point in time
       const btcChange = currentBar.asset1Daily;
