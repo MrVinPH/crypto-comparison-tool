@@ -464,10 +464,12 @@ function App() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadData();
   }, [timeframe, interval, asset1, asset2]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (data.length > 0 && backtestResults && priceInfo.asset1 && priceInfo.asset2) {
       const asset1Info = getAssetInfo(asset1);
@@ -1067,7 +1069,6 @@ function App() {
                   <div style={{ fontSize: '12px', color: '#fcd34d', marginTop: '4px' }}>Current vs average</div>
                 </div>
 
-                {/* THIS IS THE FIXED CARD - Now uses algoAnalysis.prediction.targetGap */}
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
                   <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Expected Gap Target</div>
 <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#a78bfa' }}>
