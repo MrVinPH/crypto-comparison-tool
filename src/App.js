@@ -272,7 +272,7 @@ export default function App() {
     };
   };
 
-  // Calculate ML-optimized TP/SL from historical moves
+  // Calculate data-driven TP/SL from historical moves
   const calculateTargets = (chartData, isDowntrend) => {
     if (!chartData || chartData.length < 10) {
       return { tp: 3, sl: 2, winRate: 50 };
@@ -286,12 +286,15 @@ export default function App() {
     
     // Sort and get percentiles
     const sorted = [...gapMoves].sort((a, b) => a - b);
-    const p50 = sorted[Math.floor(sorted.length * 0.5)] || 2;
-    const p75 = sorted[Math.floor(sorted.length * 0.75)] || 3;
+    const p25 = sorted[Math.floor(sorted.length * 0.25)] || 0.5;
+    const p50 = sorted[Math.floor(sorted.length * 0.5)] || 1;
+    const p75 = sorted[Math.floor(sorted.length * 0.75)] || 2;
     
-    // TP at 75th percentile, SL at 50th percentile
-    const tp = Math.max(1.5, Math.min(6, p75));
-    const sl = Math.max(1, Math.min(4, p50));
+    // TP at 75th percentile (where 75% of moves are smaller)
+    // SL at 25th percentile (tighter stop based on typical small moves)
+    // This gives a natural risk/reward based on actual market behavior
+    const tp = parseFloat(p75.toFixed(2));
+    const sl = parseFloat(Math.max(p25, p50 * 0.5).toFixed(2)); // SL at 25th percentile or half of median
 
     // Estimate win rate from historical data
     let wins = 0, total = 0;
@@ -312,12 +315,12 @@ export default function App() {
     }
 
     const winRate = total > 0 ? Math.round((wins / total) * 100) : 50;
-    return { tp: tp.toFixed(1), sl: sl.toFixed(1), winRate };
+    return { tp: tp.toFixed(2), sl: sl.toFixed(2), winRate };
   };
 
   // ============== BACKTESTING MODULE ==============
   
-  const runBacktest = (chartData, tpPercent, slPercent) => {
+  const runBacktest = (chartData, tpPercent, slPercent, recommendedDirection = null) => {
     if (!chartData || chartData.length < 20) {
       return null;
     }
@@ -325,221 +328,195 @@ export default function App() {
     const tp = parseFloat(tpPercent) || 1.5;
     const sl = parseFloat(slPercent) || 1.0;
     
-    const trades = [];
-    let equity = 100; // Start with $100
-    const equityCurve = [{ bar: 0, equity: 100, date: chartData[0]?.date }];
-    
-    let inTrade = false;
-    let tradeDirection = null; // 'LONG_BTC' or 'LONG_ALT'
-    let entryBar = 0;
-    let entryGap = 0;
-    
-    // Simulate through historical data
-    for (let i = 15; i < chartData.length; i++) {
-      const currentBar = chartData[i];
+    // Run backtest for a specific direction
+    const runDirectionBacktest = (direction) => {
+      const trades = [];
+      let equity = 100;
+      const equityCurve = [{ bar: 0, equity: 100, date: chartData[0]?.date }];
       
-      // Calculate trend at this point in time
-      const btcChange = currentBar.asset1Daily;
-      const gap = currentBar.diff;
+      let inTrade = false;
+      let entryBar = 0;
+      let entryGap = 0;
       
-      // Calculate historical mean gap up to this point
-      const historicalGaps = chartData.slice(0, i).map(d => d.diff);
-      const meanGap = historicalGaps.reduce((a, b) => a + b, 0) / historicalGaps.length;
-      const stdDev = Math.sqrt(historicalGaps.reduce((s, v) => s + Math.pow(v - meanGap, 2), 0) / historicalGaps.length);
-      
-      // Determine trend at this point
-      let trend = 'NEUTRAL';
-      if (btcChange < -5) trend = 'STRONG_DOWNTREND';
-      else if (btcChange < -2) trend = 'DOWNTREND';
-      else if (btcChange > 5) trend = 'STRONG_UPTREND';
-      else if (btcChange > 2) trend = 'UPTREND';
-      
-      const isDowntrend = trend.includes('DOWNTREND');
-      const isUptrend = trend.includes('UPTREND');
-      
-      // If in a trade, check for TP/SL exit
-      if (inTrade) {
-        const gapMove = gap - entryGap;
-        let exitReason = null;
-        let pnl = 0;
+      for (let i = 15; i < chartData.length; i++) {
+        const currentBar = chartData[i];
+        const gap = currentBar.diff;
         
-        if (tradeDirection === 'LONG_BTC') {
-          // We win if gap decreases (BTC outperforms)
-          // Gap decrease = negative gapMove
-          const profitMove = -gapMove; // Invert because we want gap to shrink
+        // Calculate historical mean gap up to this point
+        const historicalGaps = chartData.slice(0, i).map(d => d.diff);
+        const meanGap = historicalGaps.reduce((a, b) => a + b, 0) / historicalGaps.length;
+        const stdDev = Math.sqrt(historicalGaps.reduce((s, v) => s + Math.pow(v - meanGap, 2), 0) / historicalGaps.length);
+        
+        // If in a trade, check for TP/SL exit
+        if (inTrade) {
+          const gapMove = gap - entryGap;
+          let exitReason = null;
+          let pnl = 0;
           
-          if (profitMove >= tp) {
-            exitReason = 'TP';
-            pnl = tp;
-          } else if (profitMove <= -sl) {
-            exitReason = 'SL';
-            pnl = -sl;
+          if (direction === 'LONG_BTC') {
+            const profitMove = -gapMove;
+            if (profitMove >= tp) {
+              exitReason = 'TP';
+              pnl = tp;
+            } else if (profitMove <= -sl) {
+              exitReason = 'SL';
+              pnl = -sl;
+            }
+          } else {
+            const profitMove = gapMove;
+            if (profitMove >= tp) {
+              exitReason = 'TP';
+              pnl = tp;
+            } else if (profitMove <= -sl) {
+              exitReason = 'SL';
+              pnl = -sl;
+            }
           }
-        } else if (tradeDirection === 'LONG_ALT') {
-          // We win if gap increases (ALT outperforms)
-          const profitMove = gapMove;
           
-          if (profitMove >= tp) {
-            exitReason = 'TP';
-            pnl = tp;
-          } else if (profitMove <= -sl) {
-            exitReason = 'SL';
-            pnl = -sl;
+          if (!exitReason && (i - entryBar) >= 10) {
+            const currentPnL = direction === 'LONG_BTC' ? -(gap - entryGap) : (gap - entryGap);
+            exitReason = 'TIMEOUT';
+            pnl = currentPnL;
+          }
+          
+          if (exitReason) {
+            const feePercent = 0.1;
+            const netPnL = pnl - feePercent;
+            equity = equity * (1 + netPnL / 100);
+            
+            trades.push({
+              entryBar,
+              exitBar: i,
+              entryDate: chartData[entryBar]?.date,
+              exitDate: currentBar.date,
+              direction,
+              entryGap: entryGap.toFixed(2),
+              exitGap: gap.toFixed(2),
+              pnl: pnl.toFixed(2),
+              netPnL: netPnL.toFixed(2),
+              exitReason,
+              equityAfter: equity.toFixed(2),
+              holdingBars: i - entryBar
+            });
+            
+            equityCurve.push({ bar: i, equity: parseFloat(equity.toFixed(2)), date: currentBar.date });
+            inTrade = false;
           }
         }
         
-        // Check for max holding period (10 bars)
-        if (!exitReason && (i - entryBar) >= 10) {
-          // Exit at current P&L
-          const currentPnL = tradeDirection === 'LONG_BTC' ? -(gap - entryGap) : (gap - entryGap);
-          exitReason = 'TIMEOUT';
-          pnl = currentPnL;
-        }
-        
-        if (exitReason) {
-          // Close trade
-          const feePercent = 0.1; // 0.1% fee per trade (0.05% each side)
-          const netPnL = pnl - feePercent;
-          equity = equity * (1 + netPnL / 100);
-          
-          trades.push({
-            entryBar,
-            exitBar: i,
-            entryDate: chartData[entryBar]?.date,
-            exitDate: currentBar.date,
-            direction: tradeDirection,
-            entryGap: entryGap.toFixed(2),
-            exitGap: gap.toFixed(2),
-            pnl: pnl.toFixed(2),
-            netPnL: netPnL.toFixed(2),
-            exitReason,
-            equityAfter: equity.toFixed(2),
-            holdingBars: i - entryBar
-          });
-          
-          equityCurve.push({ bar: i, equity: parseFloat(equity.toFixed(2)), date: currentBar.date });
-          
-          inTrade = false;
-          tradeDirection = null;
+        // Entry logic - use mean reversion signals but with fixed direction
+        if (!inTrade) {
+          const gapDeviation = Math.abs(gap - meanGap);
+          // Enter when gap deviates from mean (opportunity for mean reversion)
+          if (gapDeviation > stdDev * 0.3) {
+            inTrade = true;
+            entryBar = i;
+            entryGap = gap;
+          }
         }
       }
       
-      // If not in a trade, check for entry signal
-      if (!inTrade) {
-        let signal = null;
-        
-        if (isDowntrend) {
-          // Trend following: LONG BTC, SHORT ALT
-          signal = 'LONG_BTC';
-        } else if (isUptrend) {
-          // Trend following: LONG ALT, SHORT BTC
-          signal = 'LONG_ALT';
+      // Calculate statistics
+      const totalTrades = trades.length;
+      const winningTrades = trades.filter(t => parseFloat(t.netPnL) > 0);
+      const losingTrades = trades.filter(t => parseFloat(t.netPnL) <= 0);
+      const wins = winningTrades.length;
+      const losses = losingTrades.length;
+      
+      const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+      
+      const grossProfit = winningTrades.reduce((sum, t) => sum + parseFloat(t.netPnL), 0);
+      const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + parseFloat(t.netPnL), 0));
+      const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 999 : 0;
+      
+      const avgWin = wins > 0 ? grossProfit / wins : 0;
+      const avgLoss = losses > 0 ? grossLoss / losses : 0;
+      
+      const expectancy = totalTrades > 0 
+        ? ((winRate / 100) * avgWin) - ((1 - winRate / 100) * avgLoss)
+        : 0;
+      
+      const totalReturn = equity - 100;
+      
+      let maxEquity = 100;
+      let maxDrawdownPercent = 0;
+      for (const point of equityCurve) {
+        if (point.equity > maxEquity) maxEquity = point.equity;
+        const drawdownPercent = ((maxEquity - point.equity) / maxEquity) * 100;
+        if (drawdownPercent > maxDrawdownPercent) maxDrawdownPercent = drawdownPercent;
+      }
+      
+      const avgHoldingPeriod = totalTrades > 0 
+        ? trades.reduce((sum, t) => sum + t.holdingBars, 0) / totalTrades 
+        : 0;
+      
+      let currentStreak = 0, longestWinStreak = 0, longestLoseStreak = 0, isWinStreak = true;
+      for (const trade of trades) {
+        const isWin = parseFloat(trade.netPnL) > 0;
+        if (isWin === isWinStreak) {
+          currentStreak++;
         } else {
-          // Neutral - Mean reversion
-          if (gap > meanGap + stdDev * 0.5) {
-            // Gap above mean - expect to narrow - LONG BTC
-            signal = 'LONG_BTC';
-          } else if (gap < meanGap - stdDev * 0.5) {
-            // Gap below mean - expect to widen - LONG ALT
-            signal = 'LONG_ALT';
-          }
-        }
-        
-        if (signal) {
-          inTrade = true;
-          tradeDirection = signal;
-          entryBar = i;
-          entryGap = gap;
+          if (isWinStreak && currentStreak > longestWinStreak) longestWinStreak = currentStreak;
+          if (!isWinStreak && currentStreak > longestLoseStreak) longestLoseStreak = currentStreak;
+          isWinStreak = isWin;
+          currentStreak = 1;
         }
       }
-    }
-    
-    // Calculate statistics
-    const totalTrades = trades.length;
-    const winningTrades = trades.filter(t => parseFloat(t.netPnL) > 0);
-    const losingTrades = trades.filter(t => parseFloat(t.netPnL) <= 0);
-    const wins = winningTrades.length;
-    const losses = losingTrades.length;
-    
-    const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
-    
-    const grossProfit = winningTrades.reduce((sum, t) => sum + parseFloat(t.netPnL), 0);
-    const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + parseFloat(t.netPnL), 0));
-    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 999 : 0;
-    
-    const avgWin = wins > 0 ? grossProfit / wins : 0;
-    const avgLoss = losses > 0 ? grossLoss / losses : 0;
-    
-    const expectancy = totalTrades > 0 
-      ? ((winRate / 100) * avgWin) - ((1 - winRate / 100) * avgLoss)
-      : 0;
-    
-    const totalReturn = equity - 100;
-    const totalReturnPercent = totalReturn;
-    
-    // Calculate max drawdown
-    let maxEquity = 100;
-    let maxDrawdownPercent = 0;
-    
-    for (const point of equityCurve) {
-      if (point.equity > maxEquity) {
-        maxEquity = point.equity;
-      }
-      const drawdown = maxEquity - point.equity;
-      const drawdownPercent = (drawdown / maxEquity) * 100;
-      if (drawdownPercent > maxDrawdownPercent) {
-        maxDrawdownPercent = drawdownPercent;
-      }
-    }
-    
-    // Calculate average holding period
-    const avgHoldingPeriod = totalTrades > 0 
-      ? trades.reduce((sum, t) => sum + t.holdingBars, 0) / totalTrades 
-      : 0;
-    
-    // Find longest winning and losing streaks
-    let currentStreak = 0;
-    let longestWinStreak = 0;
-    let longestLoseStreak = 0;
-    let isWinStreak = true;
-    
-    for (const trade of trades) {
-      const isWin = parseFloat(trade.netPnL) > 0;
-      if (isWin === isWinStreak) {
-        currentStreak++;
-      } else {
-        if (isWinStreak && currentStreak > longestWinStreak) longestWinStreak = currentStreak;
-        if (!isWinStreak && currentStreak > longestLoseStreak) longestLoseStreak = currentStreak;
-        isWinStreak = isWin;
-        currentStreak = 1;
-      }
-    }
-    // Check final streak
-    if (isWinStreak && currentStreak > longestWinStreak) longestWinStreak = currentStreak;
-    if (!isWinStreak && currentStreak > longestLoseStreak) longestLoseStreak = currentStreak;
-    
-    return {
-      totalTrades,
-      wins,
-      losses,
-      winRate: winRate.toFixed(1),
-      profitFactor: profitFactor.toFixed(2),
-      grossProfit: grossProfit.toFixed(2),
-      grossLoss: grossLoss.toFixed(2),
-      avgWin: avgWin.toFixed(2),
-      avgLoss: avgLoss.toFixed(2),
-      expectancy: expectancy.toFixed(3),
-      totalReturn: totalReturnPercent.toFixed(2),
-      finalEquity: equity.toFixed(2),
-      maxDrawdown: maxDrawdownPercent.toFixed(2),
-      avgHoldingPeriod: avgHoldingPeriod.toFixed(1),
-      longestWinStreak,
-      longestLoseStreak,
-      equityCurve,
-      trades: trades.slice(-20), // Last 20 trades for display
-      tp,
-      sl
+      if (isWinStreak && currentStreak > longestWinStreak) longestWinStreak = currentStreak;
+      if (!isWinStreak && currentStreak > longestLoseStreak) longestLoseStreak = currentStreak;
+      
+      return {
+        direction,
+        totalTrades,
+        wins,
+        losses,
+        winRate: winRate.toFixed(1),
+        profitFactor: profitFactor.toFixed(2),
+        grossProfit: grossProfit.toFixed(2),
+        grossLoss: grossLoss.toFixed(2),
+        avgWin: avgWin.toFixed(2),
+        avgLoss: avgLoss.toFixed(2),
+        expectancy: expectancy.toFixed(3),
+        totalReturn: totalReturn.toFixed(2),
+        finalEquity: equity.toFixed(2),
+        maxDrawdown: maxDrawdownPercent.toFixed(2),
+        avgHoldingPeriod: avgHoldingPeriod.toFixed(1),
+        longestWinStreak,
+        longestLoseStreak,
+        equityCurve,
+        trades: trades.slice(-20),
+        tp,
+        sl
+      };
     };
+    
+    // If we have a recommended direction, test that direction and its reverse
+    if (recommendedDirection) {
+      const mainDirection = recommendedDirection === 'BTC' ? 'LONG_BTC' : 'LONG_ALT';
+      const reverseDirection = recommendedDirection === 'BTC' ? 'LONG_ALT' : 'LONG_BTC';
+      
+      const mainResult = runDirectionBacktest(mainDirection);
+      const reverseResult = runDirectionBacktest(reverseDirection);
+      
+      return {
+        ...mainResult,
+        reverse: reverseResult,
+        recommendedDirection
+      };
+    }
+    
+    // Fallback: test both directions and return the better one
+    const btcResult = runDirectionBacktest('LONG_BTC');
+    const altResult = runDirectionBacktest('LONG_ALT');
+    
+    const btcScore = parseFloat(btcResult.totalReturn);
+    const altScore = parseFloat(altResult.totalReturn);
+    
+    if (btcScore >= altScore) {
+      return { ...btcResult, reverse: altResult };
+    } else {
+      return { ...altResult, reverse: btcResult };
+    }
   };
 
   // Main analysis function
@@ -641,6 +618,46 @@ export default function App() {
     };
   };
 
+  // Validate if backtest supports the trade recommendation
+  const validateTradeWithBacktest = (analysisResult, backtestResult) => {
+    if (!analysisResult || !backtestResult) return analysisResult;
+    
+    const winRate = parseFloat(backtestResult.winRate);
+    const profitFactor = parseFloat(backtestResult.profitFactor);
+    const totalReturn = parseFloat(backtestResult.totalReturn);
+    const totalTrades = backtestResult.totalTrades;
+    
+    // Criteria for a valid trade signal:
+    // 1. Win rate >= 50% OR
+    // 2. Profit factor >= 1.0 (profitable strategy) OR
+    // 3. Positive total return
+    // 4. At least 3 trades for statistical relevance
+    
+    const isBacktestValid = (winRate >= 50 || profitFactor >= 1.0 || totalReturn > 0) && totalTrades >= 3;
+    
+    if (!isBacktestValid && analysisResult.action === 'PAIRS_TRADE') {
+      // Override to NO_TRADE if backtest doesn't support it
+      return {
+        ...analysisResult,
+        action: 'NO_TRADE',
+        originalAction: 'PAIRS_TRADE',
+        originalLongAsset: analysisResult.longAsset,
+        originalShortAsset: analysisResult.shortAsset,
+        reasoning: `⚠️ BACKTEST OVERRIDE: Strategy analysis suggested LONG ${analysisResult.longAsset} + SHORT ${analysisResult.shortAsset}, but backtest shows poor results (Win Rate: ${winRate}%, Profit Factor: ${profitFactor}, Return: ${totalReturn}%). Wait for better conditions.`,
+        confidence: '0',
+        backtestOverride: true,
+        backtestStats: {
+          winRate,
+          profitFactor,
+          totalReturn,
+          totalTrades
+        }
+      };
+    }
+    
+    return analysisResult;
+  };
+
   const loadData = async () => {
     setLoading(true);
     const a1 = getAssetInfo(asset1), a2 = getAssetInfo(asset2);
@@ -689,13 +706,19 @@ export default function App() {
 
       setData(chartData);
       const analysisResult = runAnalysis(chartData, a1, a2, prices);
-      setAnalysis(analysisResult);
       
-      // Run backtest with the TP/SL from analysis
+      // Run backtest with the TP/SL from analysis and the recommended direction
+      let backtestResult = null;
       if (analysisResult?.targets) {
-        const backtestResult = runBacktest(chartData, analysisResult.targets.tp, analysisResult.targets.sl);
+        // Pass the recommended long asset to backtest that specific direction
+        const recommendedDirection = analysisResult.longAsset === a1.symbol ? 'BTC' : 'ALT';
+        backtestResult = runBacktest(chartData, analysisResult.targets.tp, analysisResult.targets.sl, recommendedDirection);
         setBacktest(backtestResult);
       }
+      
+      // Validate the trade recommendation against backtest results
+      const validatedAnalysis = validateTradeWithBacktest(analysisResult, backtestResult);
+      setAnalysis(validatedAnalysis);
     } catch (e) {
       console.error('Load error:', e);
       setBacktest(null);
@@ -836,7 +859,7 @@ export default function App() {
                 <CheckCircle size={48} color={isDown ? '#fb923c' : '#4ade80'} />
                 <div>
                   <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'white' }}>PAIRS TRADE</div>
-                  <div style={{ color: '#e2e8f0' }}>Confidence: {analysis.confidence}% | Win Rate: {analysis.targets.winRate}%</div>
+                  <div style={{ color: '#e2e8f0' }}>Confidence: {analysis.confidence}% | Win Rate: {backtest ? backtest.winRate : analysis.targets.winRate}%</div>
                 </div>
               </div>
 
@@ -899,7 +922,7 @@ export default function App() {
                 </div>
                 <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
                   <div style={{ fontSize: '11px', color: '#94a3b8' }}>Win Rate</div>
-                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fbbf24' }}>{analysis.targets.winRate}%</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fbbf24' }}>{backtest ? backtest.winRate : analysis.targets.winRate}%</div>
                 </div>
               </div>
             </div>
@@ -909,10 +932,33 @@ export default function App() {
         {/* No Trade Signal */}
         {analysis && analysis.action === 'NO_TRADE' && (
           <div style={{ background: 'rgba(30, 41, 59, 0.9)', borderLeft: '1px solid rgba(99, 102, 241, 0.3)', borderRight: '1px solid rgba(99, 102, 241, 0.3)', padding: '24px' }}>
-            <div style={{ background: 'linear-gradient(135deg, rgba(107, 114, 128, 0.2), rgba(55, 65, 81, 0.3))', border: '2px solid rgba(107, 114, 128, 0.4)', borderRadius: '16px', padding: '32px', textAlign: 'center' }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏸️</div>
-              <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#9ca3af', marginBottom: '12px' }}>NO TRADE SIGNAL</div>
-              <p style={{ color: '#6b7280', fontSize: '15px', maxWidth: '600px', margin: '0 auto' }}>{analysis.reasoning}</p>
+            <div style={{ background: analysis.backtestOverride ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(127, 29, 29, 0.3))' : 'linear-gradient(135deg, rgba(107, 114, 128, 0.2), rgba(55, 65, 81, 0.3))', border: `2px solid ${analysis.backtestOverride ? 'rgba(239, 68, 68, 0.4)' : 'rgba(107, 114, 128, 0.4)'}`, borderRadius: '16px', padding: '32px', textAlign: 'center' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>{analysis.backtestOverride ? '🚫' : '⏸️'}</div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: analysis.backtestOverride ? '#fca5a5' : '#9ca3af', marginBottom: '12px' }}>
+                {analysis.backtestOverride ? 'TRADE BLOCKED BY BACKTEST' : 'NO TRADE SIGNAL'}
+              </div>
+              <p style={{ color: '#94a3b8', fontSize: '15px', maxWidth: '700px', margin: '0 auto', lineHeight: '1.6' }}>{analysis.reasoning}</p>
+              
+              {analysis.backtestOverride && analysis.backtestStats && (
+                <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px 20px', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Backtest Win Rate</div>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f87171' }}>{analysis.backtestStats.winRate}%</div>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px 20px', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Profit Factor</div>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f87171' }}>{analysis.backtestStats.profitFactor}</div>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px 20px', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Total Return</div>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f87171' }}>{analysis.backtestStats.totalReturn}%</div>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px 20px', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Original Signal</div>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fbbf24' }}>LONG {analysis.originalLongAsset} / SHORT {analysis.originalShortAsset}</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -950,9 +996,9 @@ export default function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '24px' }}>📊</span>
                 <div>
-                  <h3 style={{ color: 'white', margin: 0, fontSize: '18px' }}>Strategy Backtest Results</h3>
+                  <h3 style={{ color: 'white', margin: 0, fontSize: '18px' }}>Strategy Backtest: {backtest.direction === 'LONG_BTC' ? `LONG ${a1.symbol} + SHORT ${a2.symbol}` : `LONG ${a2.symbol} + SHORT ${a1.symbol}`}</h3>
                   <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: '12px' }}>
-                    Simulated with TP: {backtest.tp}% | SL: {backtest.sl}% | Fee: 0.1% per trade
+                    Testing the recommended direction | TP: {backtest.tp}% | SL: {backtest.sl}% | Fee: 0.1% per trade
                   </p>
                 </div>
               </div>
@@ -964,33 +1010,107 @@ export default function App() {
               </button>
             </div>
 
-            {/* Key Metrics Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-              <div style={{ background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#a5b4fc', marginBottom: '4px' }}>Total Trades</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#818cf8' }}>{backtest.totalTrades}</div>
+            {/* Comparison: Recommended vs Reverse */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+              {/* Recommended Direction */}
+              <div style={{ 
+                background: parseFloat(backtest.totalReturn) >= 0 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
+                border: `2px solid ${parseFloat(backtest.totalReturn) >= 0 ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+                borderRadius: '12px', 
+                padding: '16px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '20px' }}>{parseFloat(backtest.totalReturn) >= 0 ? '✅' : '❌'}</span>
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'white' }}>RECOMMENDED</div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                      {backtest.direction === 'LONG_BTC' ? `Long ${a1.symbol} + Short ${a2.symbol}` : `Long ${a2.symbol} + Short ${a1.symbol}`}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Win Rate</div>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.winRate) >= 50 ? '#4ade80' : '#f87171' }}>{backtest.winRate}%</div>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Return</div>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.totalReturn) >= 0 ? '#4ade80' : '#f87171' }}>{parseFloat(backtest.totalReturn) >= 0 ? '+' : ''}{backtest.totalReturn}%</div>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Profit Factor</div>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.profitFactor) >= 1 ? '#4ade80' : '#f87171' }}>{backtest.profitFactor}</div>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades</div>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#818cf8' }}>{backtest.totalTrades}</div>
+                  </div>
+                </div>
               </div>
-              <div style={{ background: parseFloat(backtest.winRate) >= 50 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${parseFloat(backtest.winRate) >= 50 ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`, borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: parseFloat(backtest.winRate) >= 50 ? '#86efac' : '#fca5a5', marginBottom: '4px' }}>Win Rate</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: parseFloat(backtest.winRate) >= 50 ? '#4ade80' : '#f87171' }}>{backtest.winRate}%</div>
-              </div>
-              <div style={{ background: parseFloat(backtest.profitFactor) >= 1 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${parseFloat(backtest.profitFactor) >= 1 ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`, borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: parseFloat(backtest.profitFactor) >= 1 ? '#86efac' : '#fca5a5', marginBottom: '4px' }}>Profit Factor</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: parseFloat(backtest.profitFactor) >= 1 ? '#4ade80' : '#f87171' }}>{backtest.profitFactor}</div>
-              </div>
-              <div style={{ background: parseFloat(backtest.totalReturn) >= 0 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${parseFloat(backtest.totalReturn) >= 0 ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`, borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: parseFloat(backtest.totalReturn) >= 0 ? '#86efac' : '#fca5a5', marginBottom: '4px' }}>Total Return</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: parseFloat(backtest.totalReturn) >= 0 ? '#4ade80' : '#f87171' }}>{parseFloat(backtest.totalReturn) >= 0 ? '+' : ''}{backtest.totalReturn}%</div>
-              </div>
-              <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#fca5a5', marginBottom: '4px' }}>Max Drawdown</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f87171' }}>-{backtest.maxDrawdown}%</div>
-              </div>
-              <div style={{ background: parseFloat(backtest.expectancy) >= 0 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${parseFloat(backtest.expectancy) >= 0 ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`, borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: parseFloat(backtest.expectancy) >= 0 ? '#86efac' : '#fca5a5', marginBottom: '4px' }}>Expectancy</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: parseFloat(backtest.expectancy) >= 0 ? '#4ade80' : '#f87171' }}>{parseFloat(backtest.expectancy) >= 0 ? '+' : ''}{backtest.expectancy}%</div>
-              </div>
+
+              {/* Reverse Direction */}
+              {backtest.reverse && (
+                <div style={{ 
+                  background: parseFloat(backtest.reverse.totalReturn) >= 0 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
+                  border: `2px solid ${parseFloat(backtest.reverse.totalReturn) >= 0 ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+                  borderRadius: '12px', 
+                  padding: '16px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '20px' }}>{parseFloat(backtest.reverse.totalReturn) >= 0 ? '✅' : '❌'}</span>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'white' }}>REVERSE STRATEGY</div>
+                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                        {backtest.reverse.direction === 'LONG_BTC' ? `Long ${a1.symbol} + Short ${a2.symbol}` : `Long ${a2.symbol} + Short ${a1.symbol}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Win Rate</div>
+                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.reverse.winRate) >= 50 ? '#4ade80' : '#f87171' }}>{backtest.reverse.winRate}%</div>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Return</div>
+                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.reverse.totalReturn) >= 0 ? '#4ade80' : '#f87171' }}>{parseFloat(backtest.reverse.totalReturn) >= 0 ? '+' : ''}{backtest.reverse.totalReturn}%</div>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Profit Factor</div>
+                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.reverse.profitFactor) >= 1 ? '#4ade80' : '#f87171' }}>{backtest.reverse.profitFactor}</div>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades</div>
+                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#818cf8' }}>{backtest.reverse.totalTrades}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Recommendation based on backtest */}
+            {backtest.reverse && (
+              <div style={{ 
+                background: parseFloat(backtest.totalReturn) > parseFloat(backtest.reverse.totalReturn) 
+                  ? 'rgba(34, 197, 94, 0.15)' 
+                  : 'rgba(249, 115, 22, 0.15)',
+                border: `1px solid ${parseFloat(backtest.totalReturn) > parseFloat(backtest.reverse.totalReturn) ? 'rgba(34, 197, 94, 0.3)' : 'rgba(249, 115, 22, 0.3)'}`,
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>
+                    {parseFloat(backtest.totalReturn) > parseFloat(backtest.reverse.totalReturn) ? '👍' : '⚠️'}
+                  </span>
+                  <span style={{ color: parseFloat(backtest.totalReturn) > parseFloat(backtest.reverse.totalReturn) ? '#86efac' : '#fbbf24', fontSize: '14px' }}>
+                    {parseFloat(backtest.totalReturn) > parseFloat(backtest.reverse.totalReturn) 
+                      ? `Backtest confirms the recommendation. ${backtest.direction === 'LONG_BTC' ? `Long ${a1.symbol} + Short ${a2.symbol}` : `Long ${a2.symbol} + Short ${a1.symbol}`} performed better.`
+                      : `⚠️ REVERSE performed better! Consider ${backtest.reverse.direction === 'LONG_BTC' ? `Long ${a1.symbol} + Short ${a2.symbol}` : `Long ${a2.symbol} + Short ${a1.symbol}`} instead (Return: ${backtest.reverse.totalReturn}% vs ${backtest.totalReturn}%)`
+                    }
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Detailed Stats - Collapsible */}
             {showBacktest && (
@@ -1018,20 +1138,20 @@ export default function App() {
                     <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e2e8f0' }}>{backtest.avgHoldingPeriod} bars</div>
                   </div>
                   <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Max Drawdown</div>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#f87171' }}>-{backtest.maxDrawdown}%</div>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Expectancy</div>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: parseFloat(backtest.expectancy) >= 0 ? '#4ade80' : '#f87171' }}>{parseFloat(backtest.expectancy) >= 0 ? '+' : ''}{backtest.expectancy}%</div>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
                     <div style={{ fontSize: '11px', color: '#94a3b8' }}>Best Streak</div>
                     <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#4ade80' }}>{backtest.longestWinStreak} wins</div>
                   </div>
                   <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
                     <div style={{ fontSize: '11px', color: '#94a3b8' }}>Worst Streak</div>
                     <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#f87171' }}>{backtest.longestLoseStreak} losses</div>
-                  </div>
-                  <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Gross Profit</div>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#4ade80' }}>+{backtest.grossProfit}%</div>
-                  </div>
-                  <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Gross Loss</div>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#f87171' }}>-{backtest.grossLoss}%</div>
                   </div>
                 </div>
 
@@ -1091,7 +1211,7 @@ export default function App() {
                                   background: trade.direction === 'LONG_BTC' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(99, 102, 241, 0.2)',
                                   color: trade.direction === 'LONG_BTC' ? '#fb923c' : '#a5b4fc'
                                 }}>
-                                  {trade.direction === 'LONG_BTC' ? 'Long BTC' : 'Long ALT'}
+                                  {trade.direction === 'LONG_BTC' ? `Long ${a1.symbol}` : `Long ${a2.symbol}`}
                                 </span>
                               </td>
                               <td style={{ padding: '8px', textAlign: 'right', color: '#e2e8f0' }}>{trade.entryGap}%</td>
