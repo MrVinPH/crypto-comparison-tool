@@ -272,44 +272,40 @@ export default function App() {
     };
   };
 
-  // Calculate data-driven TP/SL from historical moves
+  // Calculate data-driven TP/SL (SWING: 3-4 TRADES/WEEK)
   const calculateTargets = (chartData, isDowntrend) => {
     if (!chartData || chartData.length < 10) {
-      return { tp: 3, sl: 2, winRate: 50 };
+      return { tp: 4, sl: 2.5, winRate: 50 };
     }
 
-    // Analyze historical gap moves
-    const gapMoves = [];
-    for (let i = 1; i < chartData.length; i++) {
-      gapMoves.push(Math.abs(chartData[i].diff - chartData[i-1].diff));
+    // Analyze historical gap moves over 3-5 bars (swing style)
+    const swingMoves = [];
+    for (let i = 4; i < chartData.length; i++) {
+      const move = Math.abs(chartData[i].diff - chartData[i - 4].diff);
+      swingMoves.push(move);
     }
     
     // Sort and get percentiles
-    const sorted = [...gapMoves].sort((a, b) => a - b);
-    const p25 = sorted[Math.floor(sorted.length * 0.25)] || 0.5;
-    const p50 = sorted[Math.floor(sorted.length * 0.5)] || 1;
-    const p75 = sorted[Math.floor(sorted.length * 0.75)] || 2;
+    const sorted = [...swingMoves].sort((a, b) => a - b);
+    const p50 = sorted[Math.floor(sorted.length * 0.5)] || 2;
+    const p75 = sorted[Math.floor(sorted.length * 0.75)] || 4;
     
-    // TP at 75th percentile (where 75% of moves are smaller)
-    // SL at 25th percentile (tighter stop based on typical small moves)
-    // This gives a natural risk/reward based on actual market behavior
-    const tp = parseFloat(p75.toFixed(2));
-    const sl = parseFloat(Math.max(p25, p50 * 0.5).toFixed(2)); // SL at 25th percentile or half of median
+    // SWING: TP at 75th percentile, SL at ~60% of TP for good R:R
+    const tp = parseFloat(Math.max(2.5, p75).toFixed(2)); // Min 2.5% TP
+    const sl = parseFloat(Math.max(1.5, p50 * 0.8).toFixed(2)); // Min 1.5% SL
 
     // Estimate win rate from historical data
     let wins = 0, total = 0;
-    for (let i = 5; i < chartData.length - 1; i++) {
+    for (let i = 8; i < chartData.length - 4; i++) {
       const gap = chartData[i].diff;
-      const nextGap = chartData[i + 1].diff;
-      const btcMove = chartData[i].asset1Daily - chartData[i-5].asset1Daily;
+      const futureGap = chartData[i + 4].diff;
+      const btcMove = chartData[i].asset1Daily - chartData[i - 5].asset1Daily;
       
-      if (isDowntrend && btcMove < -1) {
-        // In downtrend, we bet BTC outperforms (gap widens negatively)
-        if (nextGap < gap) wins++;
+      if (isDowntrend && btcMove < -2) {
+        if (futureGap < gap - 1) wins++;
         total++;
-      } else if (!isDowntrend && btcMove > 1) {
-        // In uptrend, we bet ALT outperforms (gap narrows)
-        if (nextGap > gap) wins++;
+      } else if (!isDowntrend && btcMove > 2) {
+        if (futureGap > gap + 1) wins++;
         total++;
       }
     }
@@ -318,15 +314,20 @@ export default function App() {
     return { tp: tp.toFixed(2), sl: sl.toFixed(2), winRate };
   };
 
-  // ============== BACKTESTING MODULE ==============
+  // ============== BACKTESTING MODULE (SWING: 3-4 TRADES/WEEK MAX) ==============
   
   const runBacktest = (chartData, tpPercent, slPercent, recommendedDirection = null) => {
     if (!chartData || chartData.length < 20) {
       return null;
     }
     
-    const tp = parseFloat(tpPercent) || 1.5;
-    const sl = parseFloat(slPercent) || 1.0;
+    const tp = parseFloat(tpPercent) || 4;
+    const sl = parseFloat(slPercent) || 2.5;
+    
+    // SWING TRADING: 3-4 TRADES/WEEK MAX
+    const MIN_BARS_BETWEEN_TRADES = 2; // ~2 days between trades = max 3-4/week
+    const MAX_HOLDING_PERIOD = 14; // Hold up to 14 bars (~2-3 weeks)
+    const ENTRY_THRESHOLD = 0.6; // Moderate selectivity
     
     // Run backtest for a specific direction
     const runDirectionBacktest = (direction) => {
@@ -337,6 +338,7 @@ export default function App() {
       let inTrade = false;
       let entryBar = 0;
       let entryGap = 0;
+      let lastTradeExitBar = -MIN_BARS_BETWEEN_TRADES;
       
       for (let i = 15; i < chartData.length; i++) {
         const currentBar = chartData[i];
@@ -373,7 +375,7 @@ export default function App() {
             }
           }
           
-          if (!exitReason && (i - entryBar) >= 10) {
+          if (!exitReason && (i - entryBar) >= MAX_HOLDING_PERIOD) {
             const currentPnL = direction === 'LONG_BTC' ? -(gap - entryGap) : (gap - entryGap);
             exitReason = 'TIMEOUT';
             pnl = currentPnL;
@@ -401,14 +403,15 @@ export default function App() {
             
             equityCurve.push({ bar: i, equity: parseFloat(equity.toFixed(2)), date: currentBar.date });
             inTrade = false;
+            lastTradeExitBar = i;
           }
         }
         
-        // Entry logic - use mean reversion signals but with fixed direction
-        if (!inTrade) {
-          const gapDeviation = Math.abs(gap - meanGap);
-          // Enter when gap deviates from mean (opportunity for mean reversion)
-          if (gapDeviation > stdDev * 0.3) {
+        // SWING ENTRY: Wait at least 2 bars between trades
+        if (!inTrade && (i - lastTradeExitBar) >= MIN_BARS_BETWEEN_TRADES) {
+          const gapDeviation = Math.abs(gap - meanGap) / stdDev;
+          
+          if (gapDeviation > ENTRY_THRESHOLD) {
             inTrade = true;
             entryBar = i;
             entryGap = gap;
@@ -450,6 +453,11 @@ export default function App() {
         ? trades.reduce((sum, t) => sum + t.holdingBars, 0) / totalTrades 
         : 0;
       
+      // Calculate trades per week (assuming daily bars)
+      const totalBars = chartData.length - 15;
+      const weeks = totalBars / 7;
+      const tradesPerWeek = weeks > 0 ? (totalTrades / weeks).toFixed(1) : 0;
+      
       let currentStreak = 0, longestWinStreak = 0, longestLoseStreak = 0, isWinStreak = true;
       for (const trade of trades) {
         const isWin = parseFloat(trade.netPnL) > 0;
@@ -481,6 +489,7 @@ export default function App() {
         finalEquity: equity.toFixed(2),
         maxDrawdown: maxDrawdownPercent.toFixed(2),
         avgHoldingPeriod: avgHoldingPeriod.toFixed(1),
+        tradesPerWeek,
         longestWinStreak,
         longestLoseStreak,
         equityCurve,
@@ -741,7 +750,7 @@ export default function App() {
         <div style={{ background: 'rgba(30, 41, 59, 0.9)', borderRadius: '16px 16px 0 0', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', margin: 0 }}>🧠 Crypto Pairs Analysis</h1>
-            <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: '14px' }}>ML-optimized trend detection & targets</p>
+            <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: '14px' }}>Swing Trading (3-4 trades/week) • Data-driven TP/SL</p>
           </div>
           <button onClick={loadData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600' }}>
             <RefreshCw size={18} />Refresh
@@ -1038,12 +1047,12 @@ export default function App() {
                     <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.totalReturn) >= 0 ? '#4ade80' : '#f87171' }}>{parseFloat(backtest.totalReturn) >= 0 ? '+' : ''}{backtest.totalReturn}%</div>
                   </div>
                   <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Profit Factor</div>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.profitFactor) >= 1 ? '#4ade80' : '#f87171' }}>{backtest.profitFactor}</div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades/Week</div>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.tradesPerWeek) <= 4 ? '#4ade80' : '#fbbf24' }}>{backtest.tradesPerWeek}</div>
                   </div>
                   <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades</div>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#818cf8' }}>{backtest.totalTrades}</div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Avg Hold</div>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#818cf8' }}>{backtest.avgHoldingPeriod}d</div>
                   </div>
                 </div>
               </div>
@@ -1075,12 +1084,12 @@ export default function App() {
                       <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.reverse.totalReturn) >= 0 ? '#4ade80' : '#f87171' }}>{parseFloat(backtest.reverse.totalReturn) >= 0 ? '+' : ''}{backtest.reverse.totalReturn}%</div>
                     </div>
                     <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Profit Factor</div>
-                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.reverse.profitFactor) >= 1 ? '#4ade80' : '#f87171' }}>{backtest.reverse.profitFactor}</div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades/Week</div>
+                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.reverse.tradesPerWeek) <= 4 ? '#4ade80' : '#fbbf24' }}>{backtest.reverse.tradesPerWeek}</div>
                     </div>
                     <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades</div>
-                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#818cf8' }}>{backtest.reverse.totalTrades}</div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Avg Hold</div>
+                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#818cf8' }}>{backtest.reverse.avgHoldingPeriod}d</div>
                     </div>
                   </div>
                 </div>
