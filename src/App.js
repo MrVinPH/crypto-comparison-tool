@@ -636,15 +636,16 @@ export default function App() {
     const totalReturn = parseFloat(backtestResult.totalReturn);
     const totalTrades = backtestResult.totalTrades;
     
-    // Criteria for a valid trade signal:
+    // Criteria for a GOOD trade signal:
     // 1. Win rate >= 50% OR
     // 2. Profit factor >= 1.0 (profitable strategy) OR
     // 3. Positive total return
-    // 4. At least 3 trades for statistical relevance
+    // AND at least 1 trade for validity
     
-    const isBacktestValid = (winRate >= 50 || profitFactor >= 1.0 || totalReturn > 0) && totalTrades >= 3;
+    const isBacktestGood = (winRate >= 50 || profitFactor >= 1.0 || totalReturn > 0) && totalTrades >= 1;
     
-    if (!isBacktestValid && analysisResult.action === 'PAIRS_TRADE') {
+    // Only block if backtest is BAD (not good)
+    if (!isBacktestGood && analysisResult.action === 'PAIRS_TRADE') {
       // Override to NO_TRADE if backtest doesn't support it
       return {
         ...analysisResult,
@@ -664,6 +665,7 @@ export default function App() {
       };
     }
     
+    // Backtest is good - return original analysis (allow the trade)
     return analysisResult;
   };
 
