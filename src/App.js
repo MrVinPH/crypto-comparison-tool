@@ -33,6 +33,32 @@ export default function App() {
   const [dataInfo, setDataInfo] = useState(null);
   const [backtest, setBacktest] = useState(null);
   const [showBacktest, setShowBacktest] = useState(false);
+  const [tradingFrequency, setTradingFrequency] = useState('moderate'); // conservative, moderate, active
+
+  // Trading frequency settings
+  const FREQUENCY_SETTINGS = {
+    conservative: {
+      label: 'Conservative (1-2/week)',
+      minBarsBetweenTrades: 3,
+      entryThreshold: 0.7,
+      maxHoldingPeriod: 14,
+      targetTradesPerWeek: '1-2'
+    },
+    moderate: {
+      label: 'Moderate (3-4/week)',
+      minBarsBetweenTrades: 2,
+      entryThreshold: 0.6,
+      maxHoldingPeriod: 14,
+      targetTradesPerWeek: '3-4'
+    },
+    active: {
+      label: 'Active (5-7/week)',
+      minBarsBetweenTrades: 1,
+      entryThreshold: 0.4,
+      maxHoldingPeriod: 10,
+      targetTradesPerWeek: '5-7'
+    }
+  };
 
   const getAssetInfo = (id) => CRYPTO_OPTIONS.find(a => a.id === id) || CRYPTO_OPTIONS[0];
 
@@ -316,7 +342,7 @@ export default function App() {
 
   // ============== BACKTESTING MODULE (SWING: 3-4 TRADES/WEEK MAX) ==============
   
-  const runBacktest = (chartData, tpPercent, slPercent, recommendedDirection = null) => {
+  const runBacktest = (chartData, tpPercent, slPercent, recommendedDirection = null, frequencySettings = null) => {
     if (!chartData || chartData.length < 20) {
       return null;
     }
@@ -324,10 +350,11 @@ export default function App() {
     const tp = parseFloat(tpPercent) || 4;
     const sl = parseFloat(slPercent) || 2.5;
     
-    // SWING TRADING: 3-4 TRADES/WEEK MAX
-    const MIN_BARS_BETWEEN_TRADES = 2; // ~2 days between trades = max 3-4/week
-    const MAX_HOLDING_PERIOD = 14; // Hold up to 14 bars (~2-3 weeks)
-    const ENTRY_THRESHOLD = 0.6; // Moderate selectivity
+    // Use frequency settings or defaults
+    const settings = frequencySettings || FREQUENCY_SETTINGS.moderate;
+    const MIN_BARS_BETWEEN_TRADES = settings.minBarsBetweenTrades;
+    const MAX_HOLDING_PERIOD = settings.maxHoldingPeriod;
+    const ENTRY_THRESHOLD = settings.entryThreshold;
     
     // Run backtest for a specific direction
     const runDirectionBacktest = (direction) => {
@@ -721,9 +748,10 @@ export default function App() {
       // Run backtest with the TP/SL from analysis and the recommended direction
       let backtestResult = null;
       if (analysisResult?.targets) {
-        // Pass the recommended long asset to backtest that specific direction
+        // Pass the recommended long asset and frequency settings to backtest
         const recommendedDirection = analysisResult.longAsset === a1.symbol ? 'BTC' : 'ALT';
-        backtestResult = runBacktest(chartData, analysisResult.targets.tp, analysisResult.targets.sl, recommendedDirection);
+        const frequencySettings = FREQUENCY_SETTINGS[tradingFrequency];
+        backtestResult = runBacktest(chartData, analysisResult.targets.tp, analysisResult.targets.sl, recommendedDirection, frequencySettings);
         setBacktest(backtestResult);
       }
       
@@ -738,7 +766,7 @@ export default function App() {
   };
 
   useEffect(() => { loadData(); // eslint-disable-next-line
-  }, [timeframe, interval, asset1, asset2]);
+  }, [timeframe, interval, asset1, asset2, tradingFrequency]);
 
   const a1 = getAssetInfo(asset1), a2 = getAssetInfo(asset2);
   const isDown = analysis?.trend?.trend?.includes('DOWNTREND');
@@ -752,7 +780,7 @@ export default function App() {
         <div style={{ background: 'rgba(30, 41, 59, 0.9)', borderRadius: '16px 16px 0 0', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', margin: 0 }}>🧠 Crypto Pairs Analysis</h1>
-            <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: '14px' }}>Swing Trading (3-4 trades/week) • Data-driven TP/SL</p>
+            <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: '14px' }}>Swing Trading ({FREQUENCY_SETTINGS[tradingFrequency].targetTradesPerWeek} trades/week) • Data-driven TP/SL</p>
           </div>
           <button onClick={loadData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600' }}>
             <RefreshCw size={18} />Refresh
@@ -995,6 +1023,14 @@ export default function App() {
                 {INTERVAL_OPTIONS.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
               </select>
             </div>
+            <div>
+              <label style={{ color: '#94a3b8', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Trading Frequency</label>
+              <select value={tradingFrequency} onChange={e => setTradingFrequency(e.target.value)} style={{ width: '100%', padding: '12px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '8px', fontSize: '14px' }}>
+                <option value="conservative">Conservative (1-2/week)</option>
+                <option value="moderate">Moderate (3-4/week)</option>
+                <option value="active">Active (5-7/week)</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -1049,8 +1085,8 @@ export default function App() {
                     <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.totalReturn) >= 0 ? '#4ade80' : '#f87171' }}>{parseFloat(backtest.totalReturn) >= 0 ? '+' : ''}{backtest.totalReturn}%</div>
                   </div>
                   <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades/Week</div>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.tradesPerWeek) <= 4 ? '#4ade80' : '#fbbf24' }}>{backtest.tradesPerWeek}</div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades/Week (target: {FREQUENCY_SETTINGS[tradingFrequency].targetTradesPerWeek})</div>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#818cf8' }}>{backtest.tradesPerWeek}</div>
                   </div>
                   <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', color: '#94a3b8' }}>Avg Hold</div>
@@ -1087,7 +1123,7 @@ export default function App() {
                     </div>
                     <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                       <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades/Week</div>
-                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: parseFloat(backtest.reverse.tradesPerWeek) <= 4 ? '#4ade80' : '#fbbf24' }}>{backtest.reverse.tradesPerWeek}</div>
+                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#818cf8' }}>{backtest.reverse.tradesPerWeek}</div>
                     </div>
                     <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                       <div style={{ fontSize: '10px', color: '#94a3b8' }}>Avg Hold</div>
